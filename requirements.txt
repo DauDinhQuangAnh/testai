@@ -1,0 +1,10 @@
+# Cai torch/torchaudio ban CUDA RIENG truoc (khong nam trong file nay vi can --index-url
+# phu hop voi driver CUDA dang co tren may). Xem HANDOFF.md muc 5, buoc 5.
+# Vi du: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+faster-whisper>=1.0.3
+whisperx>=3.3.0
+pyannote.audio>=3.3.0
+deepfilternet>=0.5.6
+python-dotenv>=1.0.1
+huggingface_hub>=0.23.0

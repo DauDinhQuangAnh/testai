@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+
+phase1_feasibility/samples/*
+!phase1_feasibility/samples/.gitkeep
+phase1_feasibility/results/*
+!phase1_feasibility/results/.gitkeep
