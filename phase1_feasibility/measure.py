@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+RESULTS_DIR = Path(__file__).resolve().parent / "results"
 RESULTS_FILE = RESULTS_DIR / "phase1_results.jsonl"
 
 

@@ -40,7 +40,7 @@ nhat).
 
 - Neu ban dang chay lenh TRUC TIEP tren may co cau hinh nhu tren (co GPU that),
   ban CO THE tu chay/test cac script trong `phase1_feasibility/` - hay tu kiem
-  tra bang `python phase1_feasibility/00_env_check.py` truoc khi ket luan gi.
+  tra bang `python phase1_feasibility/check_env.py` truoc khi ket luan gi.
 - Neu ban dang chay trong 1 sandbox/container rieng (vi du moi truong cloud cua
   Claude Code khong gan voi may vat ly nay) thi co the KHONG co GPU/Python that -
   trong truong hop do, chi viet code, KHONG gia dinh minh chay/test duoc, va de

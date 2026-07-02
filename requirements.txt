@@ -8,3 +8,32 @@ pyannote.audio>=3.3.0
 deepfilternet>=0.5.6
 python-dotenv>=1.0.1
 huggingface_hub>=0.23.0
+
+# Phase 3 - Streamlit App + job queue
+streamlit>=1.35.0
+sqlalchemy>=2.0.30
+psycopg2-binary>=2.9.9
+celery>=5.4.0
+redis>=5.0.4
+
+# Phase 4 - Editor (bang chinh sua thay cho Custom Streamlit Component - xem
+# HANDOFF.md Phase 4 ve ly do doi huong)
+pandas>=2.2.0
+
+# Phase 5 - Dich da ngon ngu (NLLB-200 qua transformers - xem canh bao rui ro
+# trong subtitle_pipeline/infrastructure/translator_nllb.py)
+transformers>=4.40.0
+sentencepiece>=0.2.0
+
+# Phase 6 - Auth
+bcrypt>=4.1.0
+pyjwt>=2.9.0
+extra-streamlit-components>=0.1.71
+
+# Phase 7 - Billing (Stripe)
+stripe>=10.0.0
+fastapi>=0.110.0
+uvicorn>=0.29.0
+
+# Phase 8 - Production storage (S3/MinIO)
+boto3>=1.34.0

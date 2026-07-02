@@ -1,6 +1,6 @@
 """Kiem tra moi truong truoc khi chay feasibility spike.
 
-Chay: python phase1_feasibility/00_env_check.py
+Chay: python phase1_feasibility/check_env.py
 """
 import os
 import shutil
@@ -39,7 +39,10 @@ def check_torch_cuda():
         total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
         print(f"[OK] CUDA available: {name}, VRAM total: {total_vram_gb:.1f} GB")
     else:
-        print("[WARNING] CUDA khong kha dung. Pipeline se chay CPU (rat cham cho Whisper large-v3).")
+        print(
+            "[WARNING] CUDA khong kha dung. Pipeline se chay CPU "
+            "(rat cham cho Whisper large-v3)."
+        )
     return True
 
 

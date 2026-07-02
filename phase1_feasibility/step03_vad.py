@@ -1,6 +1,12 @@
 """Buoc 3: Phat hien giong noi bang Silero VAD.
 
-Chay: python phase1_feasibility/03_vad.py results/audio_denoised.wav --out results/vad_segments.json
+CHI de do hieu nang tham khao - subtitle_pipeline (Phase 2) khong dung Silero
+VAD rieng, ma dung `vad_filter=True` tich hop san trong Faster-Whisper (xem
+HANDOFF.md muc "Quyet dinh moi"), nen khong co adapter tuong duong de tai su
+dung o day.
+
+Chay: python phase1_feasibility/step03_vad.py results/audio_denoised.wav \
+    --out results/vad_segments.json
 """
 import argparse
 import json
@@ -8,7 +14,7 @@ from pathlib import Path
 
 import torch
 
-from utils.measure import measure
+from measure import measure
 
 
 def run_vad(input_path: str):
@@ -28,7 +34,7 @@ if __name__ == "__main__":
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     segments = []
-    with measure("03_vad_silero", {"input": args.input}):
+    with measure("step03_vad_silero", {"input": args.input}):
         segments = run_vad(args.input)
 
     with open(args.out, "w", encoding="utf-8") as f:

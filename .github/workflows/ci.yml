@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Cai toan bo requirements-dev.txt (bao gom ca AI libs) de dong nhat voi
+      # huong dan setup local trong HANDOFF.md/docs/CODE_STYLE.md. CHUA toi uu
+      # thanh mot requirements-test.txt rieng nhe hon - cac test hien tai thuc
+      # ra khong can torch/whisperx/pyannote/deepfilternet (lazy-import, xem
+      # docs/CODE_STYLE.md), nen buoc cai dat nay cham hon muc can thiet. Ghi
+      # nhan la viec toi uu sau, chua lam vi them 1 file requirements moi de
+      # giu dong bo them rui ro hon loi ich luc nay.
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Run tests
+        run: pytest

@@ -1,4 +1,4 @@
-"""Orchestrator: chay tuan tu cac buoc 01->06 cua feasibility spike.
+"""Orchestrator: chay tuan tu cac buoc step01->step06 cua feasibility spike.
 
 Moi buoc duoc chay trong 1 SUBPROCESS RIENG (khong phai import chung trong 1
 process) de dam bao VRAM duoc he dieu hanh thu hoi that su giua cac buoc, tranh
@@ -14,17 +14,17 @@ import sys
 from pathlib import Path
 
 STEPS = [
-    ["01_extract_audio.py", "{input}", "--out", "results/audio_16k.wav"],
-    ["02_denoise.py", "results/audio_16k.wav", "--out", "results/audio_denoised.wav"],
-    ["03_vad.py", "results/audio_denoised.wav", "--out", "results/vad_segments.json"],
-    ["04_transcribe.py", "results/audio_denoised.wav",
+    ["step01_extract_audio.py", "{input}", "--out", "results/audio_16k.wav"],
+    ["step02_denoise.py", "results/audio_16k.wav", "--out", "results/audio_denoised.wav"],
+    ["step03_vad.py", "results/audio_denoised.wav", "--out", "results/vad_segments.json"],
+    ["step04_transcribe.py", "results/audio_denoised.wav",
         "--model", "medium", "--out", "results/transcript_medium.json"],
-    ["04_transcribe.py", "results/audio_denoised.wav",
+    ["step04_transcribe.py", "results/audio_denoised.wav",
         "--model", "large-v3", "--compute-type", "int8_float16",
         "--out", "results/transcript_large-v3.json"],
-    ["05_align.py", "results/audio_denoised.wav",
+    ["step05_align.py", "results/audio_denoised.wav",
         "--transcript", "results/transcript_medium.json", "--out", "results/aligned.json"],
-    ["06_diarize.py", "results/audio_denoised.wav", "--out", "results/diarization.json"],
+    ["step06_diarize.py", "results/audio_denoised.wav", "--out", "results/diarization.json"],
 ]
 
 
@@ -52,6 +52,8 @@ def main(input_path: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("input", help="Duong dan file video/audio mau de test (vd: samples/demo.mp4)")
+    parser.add_argument(
+        "input", help="Duong dan file video/audio mau de test (vd: samples/demo.mp4)"
+    )
     args = parser.parse_args()
     main(args.input)

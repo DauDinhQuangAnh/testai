@@ -29,7 +29,9 @@ def build_table() -> str:
             status = "FAILED" if record["error"] else "OK"
             vram = record["vram_peak_mb"] if record["vram_peak_mb"] is not None else "-"
             note = record["error"] or json.dumps(record["extra"], ensure_ascii=False)
-            rows.append(f"| {record['step']} | {status} | {record['elapsed_sec']} | {vram} | {note} |")
+            rows.append(
+                f"| {record['step']} | {status} | {record['elapsed_sec']} | {vram} | {note} |"
+            )
     return "\n".join(rows)
 
 
