@@ -818,3 +818,26 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
     nay) - `soundfile.write` mac dinh ghi wav dang PCM_16 (co luong tu hoa
     ~3e-5), vuot nguong mac dinh cua `np.allclose`; tang `atol=1e-3`.
   Ket qua: **33/33 test pass, `ruff check` sach.**
+- 2026-07-03 (lan 7): Reset DB theo yeu cau nguoi dung (sau khi bo `user_id`
+  khoi schema). Qua trinh nay phat hien 1 quy uoc rieng cua may dev nay CHUA
+  duoc ghi lai: may co san 1 Postgres native (Windows Service) chiem dung
+  **port 5432** - vi vay Postgres cho du an nay PHAI chay o port khac.
+  `docker-compose.yml` truoc do van khai bao map ra 5432 (KHONG khop thuc te),
+  trong khi `.env` that cua nguoi dung da tu sua thanh port **15432** va chay
+  Postgres qua 1 container `docker run` rieng (khong qua `docker compose`) -
+  2 co che khong dong bo, de gay nham lan (chinh toi da tuong 1 luc DB "da
+  reset" nhung thuc ra reset nham container `docker compose` khong ai dung,
+  container that qua port 15432 van con nguyen du lieu cu). Da sua:
+  `docker-compose.yml` doi port map postgres thanh `15432:5432`,
+  `.env.example` doi `DATABASE_URL` mac dinh sang port 15432, xoa container
+  `docker run` rieng le, hop nhat lai thanh 1 chuoi quan ly duy nhat qua
+  `docker compose up -d`/`down`. Da xac nhan lai bang script that (tao +
+  xoa 1 Job qua `JobRepository`) - ket noi + schema hoat dong dung. Ghi chu
+  them: **`load_dotenv()` KHONG duoc goi o bat ky dau trong `app/`**
+  (`app/config.py`, `app/db/session.py`, `app/jobs/celery_app.py`, cac trang
+  Streamlit) - cac ham `from_env()` chi doc `os.environ` truc tiep, nen
+  `.env` CHI co tac dung neu shell/terminal dang chay `streamlit`/`celery`
+  da tu export cac bien do truoc (hoac dung cong cu nhu `direnv`). Chua ro
+  day co phai van de that voi setup hien tai cua nguoi dung khong (chua bao
+  loi) - ghi nhan de kiem tra neu Celery worker/Streamlit bao loi ket noi
+  DB/Redis sau khi restart.

@@ -6,7 +6,10 @@ services:
       POSTGRES_USER: subtitle_studio
       POSTGRES_PASSWORD: subtitle_studio
     ports:
-      - "5432:5432"
+      # Map ra 15432 (khong phai 5432 mac dinh) vi may dev thuc te co san 1
+      # Postgres native (Windows Service) chiem cong 5432 - xem HANDOFF.md
+      # muc 3. Phai khop voi DATABASE_URL trong .env (port 15432).
+      - "15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
