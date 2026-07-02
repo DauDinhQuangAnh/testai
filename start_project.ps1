@@ -120,7 +120,8 @@ Load-EnvFile (Join-Path $Root ".env")
 Write-Step "Preparing PATH"
 $ffmpegBin = Find-FfmpegBin
 $torchLib = Join-Path $Root ".venv\Lib\site-packages\torch\lib"
-$env:PATH = "$ffmpegBin;$torchLib;$env:PATH"
+$ctranslate2Lib = Join-Path $Root ".venv\Lib\site-packages\ctranslate2"
+$env:PATH = "$ffmpegBin;$torchLib;$ctranslate2Lib;$env:PATH"
 $env:PYTHONIOENCODING = "utf-8"
 
 Write-Step "Stopping stale app processes"

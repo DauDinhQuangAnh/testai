@@ -4,6 +4,10 @@
 
 faster-whisper>=1.0.3
 whisperx>=3.3.0
+# Pin these on Windows/GPU. ctranslate2 4.4.x looks for cuDNN 8 DLLs that are
+# not shipped with the current CUDA/PyTorch setup, while numpy 2.x breaks DF.
+ctranslate2==4.8.0
+numpy<2.0
 pyannote.audio>=3.3.0
 deepfilternet>=0.5.6
 python-dotenv>=1.0.1
