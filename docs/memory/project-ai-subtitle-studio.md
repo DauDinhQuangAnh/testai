@@ -13,8 +13,9 @@ ngu -> export SRT/VTT/ASS/TXT/JSON), huong toi SaaS thuong mai that.
   API/FastAPI.
 - Celery + Redis + Postgres van giu de serialize job GPU nang va luu trang thai
   job (khong phai lam REST API).
-- 2 ngoai le bat buoc phai co HTTP endpoint that: Stripe webhook (billing) va
-  deploy multi-instance Streamlit sau nay.
+- 1 ngoai le co the can ha tang HTTP rieng: deploy multi-instance Streamlit
+  sau nay. (Truoc day co ngoai le Stripe webhook, nhung da BO thanh toan tu
+  dong trong app tu 2026-07-02 - goi Free/Pro van con, nang goi thu cong qua DB.)
 - Subtitle editor (timeline/waveform) se can Custom Streamlit Component (React
   nho nhung vao Streamlit).
 
@@ -26,7 +27,7 @@ ngu -> export SRT/VTT/ASS/TXT/JSON), huong toi SaaS thuong mai that.
 4. Subtitle Editor (Custom Streamlit Component)
 5. Da ngon ngu + toi uu cau subtitle
 6. Auth/User Management trong Streamlit
-7. Billing/Subscription (co ngoai le Stripe webhook)
+7. Goi cuoc + gioi han usage (khong co thanh toan tu dong - bo Stripe 2026-07-02)
 8. Bao mat nang cao + Ha tang Production
 9. Monitoring/Scale nang cao - chi lam khi co traffic/user that
 

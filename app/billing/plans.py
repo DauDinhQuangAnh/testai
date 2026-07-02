@@ -1,7 +1,10 @@
 """Dinh nghia goi cuoc va gioi han usage - dung de kiem tra truoc khi cho tao
 job moi (xem usage.py va app/pages/1_Upload.py).
+
+Khong co thanh toan tu dong trong app (quyet dinh 2026-07-02, xem HANDOFF.md):
+nang user len goi PRO lam thu cong bang cach cap nhat bang `subscriptions`
+trong DB (vd. qua `SubscriptionRepository.upsert`).
 """
-import os
 from dataclasses import dataclass
 
 from app.db.models import PlanTier
@@ -12,18 +15,9 @@ class Plan:
     tier: PlanTier
     name: str
     monthly_minutes_limit: float
-    stripe_price_id: str | None
 
 
-def get_plan_catalog() -> dict[PlanTier, Plan]:
-    return {
-        PlanTier.FREE: Plan(
-            tier=PlanTier.FREE, name="Free", monthly_minutes_limit=30.0, stripe_price_id=None
-        ),
-        PlanTier.PRO: Plan(
-            tier=PlanTier.PRO,
-            name="Pro",
-            monthly_minutes_limit=1000.0,
-            stripe_price_id=os.environ.get("STRIPE_PRO_PRICE_ID"),
-        ),
-    }
+PLAN_CATALOG = {
+    PlanTier.FREE: Plan(tier=PlanTier.FREE, name="Free", monthly_minutes_limit=30.0),
+    PlanTier.PRO: Plan(tier=PlanTier.PRO, name="Pro", monthly_minutes_limit=1000.0),
+}

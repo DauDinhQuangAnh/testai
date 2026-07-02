@@ -20,18 +20,15 @@ def test_upsert_creates_then_updates():
     created = repo.upsert(user_id="user-1", plan=PlanTier.FREE)
     assert created.plan == PlanTier.FREE
 
-    updated = repo.upsert(
-        user_id="user-1", plan=PlanTier.PRO, stripe_customer_id="cus_123"
-    )
+    updated = repo.upsert(user_id="user-1", plan=PlanTier.PRO)
     assert updated.id == created.id
     assert updated.plan == PlanTier.PRO
-    assert updated.stripe_customer_id == "cus_123"
 
 
-def test_downgrade_to_free():
+def test_upsert_back_to_free():
     repo = _make_repo()
     repo.upsert(user_id="user-1", plan=PlanTier.PRO)
 
-    repo.downgrade_to_free("user-1")
+    repo.upsert(user_id="user-1", plan=PlanTier.FREE)
 
     assert repo.get_by_user("user-1").plan == PlanTier.FREE

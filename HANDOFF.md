@@ -38,7 +38,7 @@ Checklist gop tu cac phase, de bat dau tu 1 may Windows 11 sach:
      (bam "Agree" tren trang model), roi tao token tai
      https://huggingface.co/settings/tokens
    - `SESSION_SECRET_KEY`: chay `python -c "import secrets; print(secrets.token_hex(32))"`
-   - Cac bien Stripe/S3 de trong cung duoc (chi can khi test Phase 7/8).
+   - Cac bien S3 de trong cung duoc (chi can khi test Phase 8 voi S3 that).
 7. **Postgres + Redis:** `docker compose up -d`. Kiem tra: `docker ps` thay
    2 container.
 8. **Pre-commit hook (1 lan):** `pre-commit install`.
@@ -69,11 +69,11 @@ subtitle -> dich da ngon ngu -> export SRT/VTT/ASS/TXT/JSON.
 - **Celery + Redis + Postgres van giu nguyen** - khong phai de lam REST API, ma
   de serialize cac job GPU nang (may dev chi chay duoc concurrency=1 cho GPU) va
   luu trang thai job. Streamlit chi enqueue task roi poll Postgres/Redis.
-- **2 ngoai le bat buoc phai co HTTP endpoint that** (khong tranh duoc):
-  1. Stripe webhook (Phase billing) - can 1 route nho doc lap (FastAPI/Flask toi gian
-     chi 1 endpoint), khong lien quan gi den kien truc frontend-backend chinh.
-  2. Deploy multi-user Streamlit co the can nhieu instance + reverse proxy voi
-     sticky session (van de nay chi giai quyet o Phase ha tang, chua can lam ngay).
+- **1 ngoai le co the can HTTP endpoint/ha tang rieng** (ngoai Streamlit):
+  deploy multi-user Streamlit co the can nhieu instance + reverse proxy voi
+  sticky session (chi giai quyet o Phase ha tang, chua can lam ngay).
+  (Truoc day con ngoai le thu 2 la Stripe webhook, nhung da bo thanh toan tu
+  dong trong app - xem quyet dinh 2026-07-02 ben duoi.)
 - **Auth**: dung thu vien session/cookie cho Streamlit (vd. `streamlit-authenticator`,
   `extra-streamlit-components`) thay vi JWT+refresh token kieu web framework thuan.
 - **Subtitle editor (Phase 4) dung widget Streamlit thuan (`st.data_editor`),
@@ -82,9 +82,13 @@ subtitle -> dich da ngon ngu -> export SRT/VTT/ASS/TXT/JSON.
   kiem thu bundle JS/React - moi truong viet code khong co cong cu do (tuong tu
   ly do khong co Python that), nen code React chua tung duoc build la rui ro
   cao hon han. Nang cap len timeline/waveform keo-tha that su la viec lam sau.
-- **Stripe webhook (ngoai le HTTP API) da duoc trien khai o Phase 7:**
-  `app/billing/webhook_app.py` (FastAPI toi gian, 1 route `/stripe/webhook`),
-  chay rieng biet voi Streamlit qua `uvicorn`.
+- **KHONG co thanh toan tu dong trong app (quyet dinh 2026-07-02):** nguoi dung
+  xac nhan khong can thanh toan qua app. Da xoa toan bo tich hop Stripe
+  (`stripe_service.py`, `webhook_app.py`, cac bien env STRIPE_*). Van GIU khai
+  niem goi Free/Pro + gioi han phut/thang (`app/billing/plans.py`, `usage.py`,
+  `SubscriptionRepository`) - nang user len Pro lam THU CONG bang cach cap nhat
+  bang `subscriptions` trong DB (goi `SubscriptionRepository.upsert(user_id,
+  PlanTier.PRO)`).
 
 ## 3. Rang buoc moi truong quan trong (BAT BUOC DOC)
 
@@ -114,7 +118,7 @@ subtitle -> dich da ngon ngu -> export SRT/VTT/ASS/TXT/JSON.
 4. Subtitle Editor (`st.data_editor` - xem "Quyet dinh moi") (code xong, **CHUA chay**)
 5. Da ngon ngu + toi uu cau subtitle (code xong, **CHUA chay, rui ro cao nhat**)
 6. Auth/User Management trong Streamlit (code xong, **CHUA chay**)
-7. Billing/Subscription (Stripe) (code xong, **CHUA chay, can Stripe test account**)
+7. Goi cuoc + gioi han usage (KHONG con Stripe - xem "Quyet dinh moi") (code xong, **CHUA chay**)
 8. Bao mat nang cao + Ha tang Production - MOT PHAN: storage S3 abstraction + CI
    da co code, **CHUA lam**: secrets manager that, deploy multi-instance
 9. Monitoring/Scale nang cao - **CO CHU DICH CHUA LAM** (Prometheus/Grafana,
@@ -362,36 +366,34 @@ trinh duyet that.**
 form dang nhap/dang ky -> dang ky tai khoan moi -> xac nhan job chi hien thi
 cho dung user do (tao 2 tai khoan, kiem tra tai khoan A khong thay job cua B).
 
-## 6g. Phase 7 - Billing/Subscription (Stripe)
+## 6g. Phase 7 - Goi cuoc + gioi han usage (khong co thanh toan tu dong)
 
-**Muc tieu:** Goi Free (30 phut/thang) va Pro (thanh toan qua Stripe), gioi han
-usage truoc khi cho tao job moi.
+**Muc tieu:** Goi Free (30 phut/thang) va Pro (1000 phut/thang), gioi han
+usage truoc khi cho tao job moi. KHONG co thanh toan trong app (xem "Quyet
+dinh moi" 2026-07-02) - nang goi lam thu cong qua DB.
 
-**Trang thai:** Code xong (2026-07-02), **CHUA chay thu voi Stripe that (khong
-co Stripe test account trong moi truong viet code).**
+**Trang thai:** Code xong (2026-07-02, don lai sau khi bo Stripe), **CHUA chay thu.**
 
 **Kien truc:**
-- `app/db/models.py` them `PlanTier` (free/pro), `Subscription`.
-- `app/billing/plans.py` - dinh nghia gioi han phut/thang moi goi.
+- `app/db/models.py` - `PlanTier` (free/pro), `Subscription` (user_id, plan,
+  updated_at - khong con truong Stripe).
+- `app/billing/plans.py` - `PLAN_CATALOG` dinh nghia gioi han phut/thang moi goi.
 - `app/billing/usage.py` - `monthly_minutes_used()`, uoc luong thoi luong da xu
   ly tu timestamp `end` cuoi cung trong file JSON ket qua (khong can them
   dependency ffprobe). Co test (`tests/test_usage.py`).
-- `app/billing/repository.py` - `SubscriptionRepository`. Co test.
-- `app/billing/stripe_service.py` - tao Checkout Session, xac minh webhook.
-- `app/billing/webhook_app.py` - FastAPI toi gian, route `/stripe/webhook`,
-  cap nhat `Subscription` khi Stripe bao thanh toan thanh cong/huy. Chay rieng:
-  `uvicorn app.billing.webhook_app:app --port 8001`.
-- `app/pages/4_Billing.py` - xem goi hien tai, usage, nut nang cap (mo link
-  Stripe Checkout).
+- `app/billing/repository.py` - `SubscriptionRepository` (get_by_user/upsert).
+  Co test.
+- `app/pages/4_Billing.py` - xem goi hien tai + thanh usage trong thang.
 - `app/pages/1_Upload.py` - chan tao job moi neu da vuot gioi han phut/thang
   cua goi hien tai; them kiem tra dinh dang/kich thuoc file (Phase 8).
 
-**Viec can lam (can Stripe test account - https://dashboard.stripe.com, mode
-Test):** Tao 1 Product/Price, dien `STRIPE_SECRET_KEY`/`STRIPE_PRO_PRICE_ID`
-vao `.env`. Dung `stripe listen --forward-to localhost:8001/stripe/webhook`
-(Stripe CLI) de lay `STRIPE_WEBHOOK_SECRET` va forward webhook khi test local.
-Thu nang cap tu trang Billing, xac nhan Subscription duoc cap nhat sau khi
-thanh toan test thanh cong.
+**Cach nang 1 user len Pro (thu cong):** mo Python shell tren may chay app:
+`from app.billing.repository import SubscriptionRepository` roi
+`from app.db.models import PlanTier` va goi
+`SubscriptionRepository().upsert("<user_id>", PlanTier.PRO)`.
+
+**Viec can lam:** Sau khi co tai khoan (Phase 6), kiem tra trang Billing hien
+dung goi Free + usage; tao du job vuot 30 phut de xac nhan Upload bi chan.
 
 ## 6h. Phase 8 - Bao mat + Ha tang Production (mot phan)
 
@@ -511,11 +513,10 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
     Streamlit, co the khong tuong thich voi `streamlit>=1.35`. Neu loi, phuong
     an du phong: dung `st.session_state` don thuan (mat dang nhap khi tai lai
     trang) trong luc cho fix.
-  - **Phase 7 (Billing):** CHUA co Stripe test account nao duoc dung - toan bo
-    `stripe_service.py`/`webhook_app.py` la code "theo tai lieu Stripe", chua
-    validate voi API that. `monthly_minutes_used()` la UOC LUONG (dua vao
+  - **Phase 7 (Goi cuoc):** `monthly_minutes_used()` la UOC LUONG (dua vao
     timestamp cuoi cung trong JSON, khong phai thoi luong file that) - co the
-    sai lech nho.
+    sai lech nho. (Stripe da bo hoan toan 2026-07-02 nen khong con rui ro
+    tich hop thanh toan.)
   - **Phase 8:** `app/storage.py` (S3Storage) hoan toan chua test (can AWS
     that); CHUA duoc noi vao luong Upload/Editor/Celery task hien co.
   - **Tich hop cheo:** Them `user_id` bat buoc vao `Job` la thay doi schema -
@@ -529,7 +530,7 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
   `test_usage.py`, `test_storage.py`) -> Phase 3 web UI (Upload/Dashboard) ->
   Phase 6 (dang ky/dang nhap - BAT BUOC truoc vi Upload/Dashboard/Editor deu
   can dang nhap) -> Phase 4 (Editor) -> Phase 5 (dich, rui ro cao nhat, test
-  sau cung) -> Phase 7 (billing, can Stripe test account rieng) -> Phase 8.
+  sau cung) -> Phase 7 (goi cuoc/gioi han usage) -> Phase 8.
 
 ## 9. Nhat ky cap nhat
 
@@ -562,3 +563,10 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
 - 2026-07-02: Them muc "0. Setup nhanh tren may dev that" (checklist gop) va
   push toan bo code Phase 2-8 len GitHub de nguoi dung clone ve may RTX 4050
   chay kiem thu.
+- 2026-07-02: BO toan bo thanh toan Stripe theo yeu cau nguoi dung ("khong can
+  thanh toan kieu vay qua app"): xoa `app/billing/stripe_service.py`,
+  `app/billing/webhook_app.py`, bien env STRIPE_*, dependency
+  stripe/fastapi/uvicorn. GIU goi Free/Pro + gioi han phut/thang; nang goi lam
+  thu cong qua `SubscriptionRepository.upsert`. `Subscription` model khong con
+  cac truong Stripe; `plans.py` doi tu ham `get_plan_catalog()` sang hang so
+  `PLAN_CATALOG` (khong con phu thuoc env).

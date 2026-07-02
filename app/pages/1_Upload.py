@@ -19,7 +19,7 @@ for _parent in Path(__file__).resolve().parents:
         break
 
 from app.auth.streamlit_helpers import require_login
-from app.billing.plans import get_plan_catalog
+from app.billing.plans import PLAN_CATALOG
 from app.billing.repository import SubscriptionRepository
 from app.billing.usage import monthly_minutes_used
 from app.config import AppConfig
@@ -38,8 +38,8 @@ config = AppConfig.from_env()
 job_repo = JobRepository()
 
 subscription = SubscriptionRepository().get_by_user(user.id)
-current_plan = (subscription.plan if subscription else PlanTier.FREE)
-plan_info = get_plan_catalog()[current_plan]
+current_plan = subscription.plan if subscription else PlanTier.FREE
+plan_info = PLAN_CATALOG[current_plan]
 minutes_used = monthly_minutes_used(job_repo.list_by_user(user.id))
 
 if minutes_used >= plan_info.monthly_minutes_limit:
