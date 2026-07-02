@@ -4,7 +4,13 @@ khop khung thoi gian goc, dung thanh 1 track audio day du theo timeline, roi
 mux (ghep) vao video goc thay the audio cu. Buoc nay chay SAU buoc dich
 (application/translate.py), tach rieng vi la hanh dong tuy chon nguoi dung
 kich hoat tu Editor (xem app/jobs/tasks.py: dub_job).
+
+Sau khi mux xong, XOA toan bo `work_dir` (audio trung gian cua ca buoc
+transcribe lan cac clip TTS/track am thanh tam) - chi giu lai file ket qua
+trong `out_dir` (phu de + video da long tieng). Xem HANDOFF.md Phase 5b,
+quyet dinh don file 2026-07-03.
 """
+import shutil
 from pathlib import Path
 
 from subtitle_pipeline.domain.models import SubtitleSegment
@@ -13,7 +19,7 @@ from subtitle_pipeline.infrastructure.audio_timing import (
     probe_duration_seconds,
     time_stretch_to_duration,
 )
-from subtitle_pipeline.infrastructure.tts_mms import MMSTTSSynthesizer
+from subtitle_pipeline.infrastructure.tts_edge import EdgeTTSSynthesizer
 
 MIN_SEGMENT_DURATION_SECONDS = 0.05
 
@@ -31,7 +37,6 @@ def _total_duration(work_dir: Path, source_video: Path) -> float:
 def dub_and_export(
     segments: list[SubtitleSegment],
     target_language: str,
-    device: str,
     source_video: Path,
     work_dir: Path,
     out_dir: Path,
@@ -41,7 +46,7 @@ def dub_and_export(
     segment_dir.mkdir(parents=True, exist_ok=True)
 
     stretched_clips: list[tuple[float, Path]] = []
-    with MMSTTSSynthesizer(target_language, device) as tts:
+    with EdgeTTSSynthesizer(target_language) as tts:
         for i, seg in enumerate(segments):
             raw_clip = segment_dir / f"{i:05d}_raw.wav"
             tts.synthesize(seg.text, raw_clip)
@@ -59,4 +64,6 @@ def dub_and_export(
     out_dir.mkdir(parents=True, exist_ok=True)
     output_path = out_dir / f"{stem}.{target_language}.dubbed.mp4"
     mux_audio_into_video(source_video, dub_track_path, output_path)
+
+    shutil.rmtree(work_dir, ignore_errors=True)
     return output_path

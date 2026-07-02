@@ -25,9 +25,11 @@ pandas>=2.2.0
 transformers>=4.40.0
 sentencepiece>=0.2.0
 
-# Phase 5b - Long tieng (MMS-TTS qua transformers - xem canh bao rui ro trong
-# subtitle_pipeline/infrastructure/tts_mms.py)
+# Phase 5b - Long tieng (edge-tts - giong Neural TTS mien phi cua Microsoft,
+# xem canh bao rui ro (can internet) trong
+# subtitle_pipeline/infrastructure/tts_edge.py)
 soundfile>=0.12.1
+edge-tts>=6.1.9
 
 # Phase 6 - Auth
 bcrypt>=4.1.0

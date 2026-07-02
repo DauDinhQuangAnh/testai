@@ -28,7 +28,7 @@ NLLB_LANGUAGE_CODES = {
 
 # Danh sach ngon ngu dich/long tieng dung chung cho ca Upload va Editor page -
 # dat o day (thay vi hardcode rieng tung noi) vi day la nguon gioi han thuc su
-# (phai ho tro ca NLLB lan MMS-TTS, xem infrastructure/tts_mms.py).
+# (phai ho tro ca NLLB lan edge-tts, xem infrastructure/tts_edge.py).
 SUPPORTED_LANGUAGES = list(NLLB_LANGUAGE_CODES.keys())
 
 

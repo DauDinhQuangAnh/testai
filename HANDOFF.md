@@ -441,21 +441,22 @@ dich chinh la **tieng Viet**, **khong can voice cloning** o ban v1 (chap nhan
 giong doc chuan), va du an la **ca nhan/phi thuong mai** nen khong bi rang
 buoc license commercial.
 
-**Vi sao chon MMS-TTS (`facebook/mms-tts-vie`) thay vi Coqui XTTS-v2:**
+**Vi sao chon MMS-TTS (`facebook/mms-tts-vie`) thay vi Coqui XTTS-v2 (quyet
+dinh ban dau, DA BI THAY THE - xem "Cap nhat 2026-07-03 lan 2" ben duoi):**
 XTTS-v2 (model voice-cloning tot nhat hien co) KHONG co tieng Viet trong 17
 ngon ngu ho tro. MMS-TTS (Meta) co checkpoint rieng cho ~1100 ngon ngu bao gom
 tieng Viet, chay qua `transformers.VitsModel`/`VitsTokenizer` - dung chung thu
 vien `transformers` da co san tu Phase 5 (khong them framework ML moi), VRAM
 rat nhe (<1GB, phu hop ngan sach 6GB VRAM dang chia se voi Whisper/pyannote/
 NLLB). Doi lai KHONG ho tro voice cloning (dung yeu cau v1) va license
-CC-BY-NC (chap nhan duoc vi du an khong con thuong mai).
+CC-BY-NC (chap nhan duoc vi du an khong con thuong mai). **Sau khi chay thu
+tren may dev that, chat luong giong MMS-TTS qua te (VITS robot, phat am sai
+nhieu) - da thay bang `edge-tts`, xem chi tiet o "Cap nhat 2026-07-03 lan 2".**
 
 **Kien truc (noi tiep dung Clean Architecture cua `subtitle_pipeline/`):**
 - `subtitle_pipeline/domain/ports.py` - them Protocol `VoiceSynthesizer`.
-- `subtitle_pipeline/infrastructure/tts_mms.py` - `MMSTTSSynthesizer`
-  (context manager cung mau cac adapter khac). **CANH BAO RUI RO cung muc do
-  voi `translator_nllb.py`: day la adapter DUY NHAT chua tung chay thu, cach
-  goi `VitsModel`/`VitsTokenizer` chi dua theo tai lieu HuggingFace.**
+- `subtitle_pipeline/infrastructure/tts_edge.py` - `EdgeTTSSynthesizer` (thay
+  the `tts_mms.py` da xoa - xem "Cap nhat 2026-07-03 lan 2" ben duoi).
 - `subtitle_pipeline/infrastructure/audio_timing.py` - `probe_duration_seconds`
   (ffprobe) + `time_stretch_to_duration` (ffmpeg `atempo`, tu chia nho factor
   ngoai khoang [0.5, 2.0] thanh chuoi filter - ham thuan `_clamp_atempo_factors`
@@ -512,6 +513,34 @@ cau don gian hoa flow) - gop toan bo vao 1 buoc upload duy nhat:**
   (`_clamp_atempo_factors`, dat clip dung offset trong track) bang du lieu
   gia lap qua `soundfile`/`numpy`, KHONG can model TTS/ffmpeg that.
 
+**Cap nhat 2026-07-03 lan 2 (sau khi nguoi dung chay thu tren may dev that va
+danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
+- **Doi tu MMS-TTS sang `edge-tts`:** xoa
+  `subtitle_pipeline/infrastructure/tts_mms.py`, them
+  `subtitle_pipeline/infrastructure/tts_edge.py` (`EdgeTTSSynthesizer`). Da
+  research (xem chi tiet trong docstring dau file `tts_edge.py`): MMS-TTS la
+  VITS chat luong thap, phat am nhieu loi; `edge-tts` goi giong Azure Neural
+  TTS THAT cua Microsoft (mien phi, khong can API key, qua tinh nang "Doc to"
+  cua trinh duyet Edge) - chat luong tu nhien hon han. Giong tieng Viet dung:
+  `vi-VN-HoaiMyNeural` (nu, mac dinh). **DANH DOI: day la adapter DUY NHAT
+  trong toan bo pipeline can INTERNET** (goi qua giao thuc noi bo cua Edge,
+  khong phai API chinh thuc duoc Microsoft cong bo/dam bao - co the bi gian
+  doan neu Microsoft thay doi, luc do thu `pip install -U edge-tts` truoc).
+  Neu sau nay can bo hoan toan phu thuoc internet, tham khao **VieNeu-TTS**
+  (github.com/pnnbao97/VieNeu-TTS - TTS tieng Viet local/GPU, co voice
+  cloning, MOI CHUA duoc dua vao du an nay, can research/test lai tu dau).
+  `dub_and_export()` khong con nhan tham so `device` (edge-tts khong dung
+  GPU/local model).
+- **Tu dong xoa file trung gian sau khi long tieng xong:** `dub_and_export()`
+  (`subtitle_pipeline/application/dub.py`) gio goi `shutil.rmtree(work_dir)`
+  ngay sau khi mux video thanh cong - xoa toan bo `_work/` (audio trung gian
+  cua buoc transcribe: `audio_16k.wav`, `audio_denoised.wav`, cac clip TTS
+  tam trong `dub_<lang>_segments/`, track am thanh tam `dub_track_<lang>.wav`).
+  Chi giu lai file trong `out_dir`: cac dinh dang phu de goc + phu de da dich
+  + video `.dubbed.mp4` cuoi cung. Ap dung cho ca 2 duong goi
+  `dub_and_export()` (auto-flow tu Upload va nut thu cong o Editor).
+- `requirements.txt` - them `edge-tts>=6.1.9`.
+
 **Han che da biet (chua giai quyet trong ban nay):**
 - Khong co voice cloning - toan bo cau trong 1 ngon ngu dung chung 1 giong doc
   trung tinh (dung theo yeu cau nguoi dung cho v1).
@@ -521,19 +550,24 @@ cau don gian hoa flow) - gop toan bo vao 1 buoc upload duy nhat:**
 - Neu cau TTS qua dai/qua ngan so voi khung thoi gian goc, `atempo` co the lam
   giong nghe khong tu nhien (nhanh/cham bat thuong) - chua co gioi han canh
   bao hay fallback nao khac ngoai viec chia nho factor cho hop le voi ffmpeg.
+- **`edge-tts` can INTERNET on dinh cho MOI segment** - video dai nhieu cau se
+  goi API nhieu lan, mang cham/mat ket noi giua chung se lam job that bai giua
+  chung (chua co retry/backoff).
 
 **Viec can lam tren may dev that:**
-1. `pip install -r requirements.txt` (cai `soundfile` moi them; `transformers`
-   da co san tu Phase 5).
-2. Dam bao da co 1 job DONE (Phase 3) + Celery worker + Streamlit dang chay.
-3. Vao Editor, chon job, o khoi "Long tieng" chon ngon ngu (vd. `vi`) va bam
-   "Dich + Long tieng" (chi 1 nut, tu dong dich neu chua dich).
-4. Theo doi log Celery worker - rat co the loi o lan chay dau vi
-   `tts_mms.py`/`audio_mux.py` chua test bao gio, sua theo log cu the.
-5. Khi xong, video `<file>.vi.dubbed.mp4` xuat hien trong Editor - phat thu de
-   kiem tra audio khop timeline, mo bang trinh phat video khac de xac nhan
-   khong loi mux.
-6. Bao lai loi/log cu the (dac biet neu OOM khi TTS chay, hoac loi filter
+1. `pip install -r requirements.txt` (cai `edge-tts`/`soundfile` moi them).
+2. Dam bao da co internet on dinh (edge-tts can goi mang), Celery worker +
+   Streamlit dang chay.
+3. Cach 1 (khuyen nghi, tu dong): trang Upload, chon ngon ngu long tieng roi
+   tao job - job tu chay het khong can thao tac them (xem "Cap nhat
+   2026-07-03" phia tren). Cach 2 (lam lai/doi ngon ngu): vao Editor, chon
+   job, o khoi "Long tieng" bam "Dich + Long tieng".
+4. Theo doi log Celery worker - van co the loi o lan chay dau (adapter
+   `tts_edge.py`/`audio_mux.py` moi doi, chua test full end-to-end that).
+5. Khi xong, video `<file>.<lang>.dubbed.mp4` xuat hien trong Dashboard/Editor
+   - phat thu kiem tra giong doc + audio khop timeline, xac nhan `_work/` da
+   duoc xoa sach (chi con file ket qua trong thu muc output).
+6. Bao lai loi/log cu the (dac biet loi ket noi edge-tts, hoac loi filter
    `atempo` chain) de sua tiep.
 
 ## 7. Quyet dinh moi / thay doi so voi ban dau
@@ -665,21 +699,22 @@ cau don gian hoa flow) - gop toan bo vao 1 buoc upload duy nhat:**
     neu co du lieu Job cu trong DB that (khong co tren may nao vi chua chay
     lan nao) se can migration; hien tai khong van de vi DB luon duoc tao moi
     tu `Base.metadata.create_all()`.
-- **Chua xac minh Phase 5b tren may that (RUI RO CAO NHAT cua toan bo du
-  an, xem muc 6i) - TOAN BO chua chay lan nao:**
-  - Cach goi `transformers.VitsModel`/`VitsTokenizer` (`tts_mms.py`) hoan
-    toan chua verify - co the sai ten tham so/API giua cac phien ban
-    `transformers`, tuong tu rui ro da biet o `translator_nllb.py`.
-  - `time_stretch_to_duration` dung ffmpeg `atempo` chua test thuc te - can
-    xac nhan chuoi filter chia nho (khi factor ngoai [0.5, 2.0]) chay dung,
-    va chat luong am thanh sau khi stretch nhieu lan co chap nhan duoc khong.
-  - `build_dub_track`/`mux_audio_into_video` chua test voi audio/video that -
-    rui ro lech timing tich luy qua nhieu segment, hoac loi map audio/video
-    stream khi mux (`-map 0:v:0 -map 1:a:0`).
-  - Chua do anh huong VRAM khi MMS-TTS chay - dac biet neu Celery worker van
-    con giu model dich (NLLB) resident luc TTS load (ca hai deu qua
-    `transformers`, can xac nhan `release_gpu_memory()` giai phong dung giua
-    2 buoc).
+- **Phase 5b da chay thu 1 lan tren may that voi MMS-TTS - chat luong giong
+  qua te, da doi sang `edge-tts` (xem muc 6i "Cap nhat 2026-07-03 lan 2").
+  Ban `edge-tts` CHUA duoc chay thu end-to-end lan nao:**
+  - `EdgeTTSSynthesizer` (`tts_edge.py`) can INTERNET on dinh - chua test
+    hanh vi khi mat mang giua chung (job that bai giua chung, chua co retry).
+  - `time_stretch_to_duration` dung ffmpeg `atempo` da chay duoc voi MMS-TTS
+    nhung chua verify lai voi audio dau ra tu `edge-tts` (sample rate/dinh
+    dang khac - da ep ve wav 24kHz mono trong `tts_edge.py`, can xac nhan
+    `_clamp_atempo_factors` xu ly dung voi do dai cau thuc te cua giong moi).
+  - `build_dub_track`/`mux_audio_into_video` da chay duoc 1 lan (video xuat ra
+    thanh cong) nhung chat luong giong la van de chinh dan den quyet dinh doi
+    TTS - can chay lai voi `edge-tts` de xac nhan video cuoi cung nghe on.
+  - Buoc don file (`shutil.rmtree(work_dir)` trong `dub_and_export`) MOI THEM,
+    chua chay thu - can xac nhan khong xoa nham file dang can dung (vd. neu
+    `dub_job` chay 2 lan song song cho 2 ngon ngu khac nhau tren cung 1 job -
+    truong hop hiem, chua xu ly).
 - **Uu tien thu tu kiem thu tren may dev that de cach ly loi hieu qua:**
   Phase 1 (`check_env.py` + `run_all.py`) -> Phase 2 CLI -> `pytest` toan bo
   (bao gom cac test moi: `test_optimize.py`, `test_security.py`,
@@ -749,3 +784,14 @@ cau don gian hoa flow) - gop toan bo vao 1 buoc upload duy nhat:**
   tren dia) o Dashboard (`JobRepository.delete`, checkbox xac nhan + nut "Xoa
   job"). Gop `SUPPORTED_LANGUAGES` ve 1 noi dung
   (`translator_nllb.py`) thay vi hardcode rieng o Upload/Editor.
+- 2026-07-03 (lan 2): Nguoi dung chay thu long tieng tren may that, danh gia
+  chat luong giong MMS-TTS "qua te". Research va doi TTS backend sang
+  `edge-tts` (giong Neural TTS mien phi cua Microsoft, chat luong tot hon han
+  - xem HANDOFF.md muc 6i "Cap nhat 2026-07-03 lan 2"): xoa `tts_mms.py`,
+  them `tts_edge.py`, `dub_and_export()` bo tham so `device` (khong con can
+  GPU cho TTS). Them `edge-tts>=6.1.9` vao requirements.txt. Danh doi:
+  adapter nay can internet, khac voi phan con lai cua pipeline (100%
+  offline). Cung luc, them buoc TU DONG XOA thu muc `_work/` (audio trung
+  gian, clip TTS tam) ngay sau khi long tieng xong, chi giu lai file ket qua
+  trong thu muc output - theo yeu cau nguoi dung "xoa file khong can thiet,
+  de lai ket qua thoi".

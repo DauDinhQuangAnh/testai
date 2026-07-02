@@ -55,7 +55,6 @@ def process_video_job(job_id: str, target_language: str | None = None) -> None:
             dub_and_export(
                 segments=translated,
                 target_language=target_language,
-                device=config.device,
                 source_video=Path(job.input_path),
                 work_dir=work_dir,
                 out_dir=out_dir,
@@ -131,7 +130,6 @@ def dub_job(job_id: str, target_language: str) -> None:
     dub_and_export(
         segments=segments,
         target_language=target_language,
-        device=config.device,
         source_video=Path(job.input_path),
         work_dir=work_dir,
         out_dir=out_dir,
