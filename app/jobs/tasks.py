@@ -1,6 +1,7 @@
 """Celery task chay AI pipeline (Phase 2 - subtitle_pipeline) cho 1 Job va cap
 nhat trang thai/tien do vao DB de Streamlit Dashboard hien thi.
 """
+
 import json
 from pathlib import Path
 

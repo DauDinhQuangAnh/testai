@@ -63,33 +63,23 @@ subtitle -> dich da ngon ngu -> export SRT/VTT/ASS/TXT/JSON.
 
 ## 2. Quyet dinh kien truc da chot
 
-- **Frontend/Backend UI: Streamlit xuyen suot**, ke ca ban thuong mai sau nay.
-  KHONG dung Next.js. Streamlit goi truc tiep ham Python (in-process), KHONG
-  dung FastAPI lam lop REST API trung gian.
+- **Tool CA NHAN, KHONG con da nguoi dung/Auth/Billing (quyet dinh 2026-07-03,
+  xem "Quyet dinh moi"):** khong dang nhap, khong phan quyen theo user, khong
+  goi cuoc/gioi han usage. Moi job hien thi cho tat ca (thuc te chi 1 nguoi
+  dung tren 1 may dev). Da xoa hoan toan `app/auth/`, `app/billing/`,
+  `app/pages/4_Billing.py`, bang `users`/`subscriptions`, cot `Job.user_id`.
+- **Frontend/Backend UI: Streamlit xuyen suot.** KHONG dung Next.js. Streamlit
+  goi truc tiep ham Python (in-process), KHONG dung FastAPI lam lop REST API
+  trung gian.
 - **Celery + Redis + Postgres van giu nguyen** - khong phai de lam REST API, ma
   de serialize cac job GPU nang (may dev chi chay duoc concurrency=1 cho GPU) va
   luu trang thai job. Streamlit chi enqueue task roi poll Postgres/Redis.
-- **1 ngoai le co the can HTTP endpoint/ha tang rieng** (ngoai Streamlit):
-  deploy multi-user Streamlit co the can nhieu instance + reverse proxy voi
-  sticky session (chi giai quyet o Phase ha tang, chua can lam ngay).
-  (Truoc day con ngoai le thu 2 la Stripe webhook, nhung da bo thanh toan tu
-  dong trong app - xem quyet dinh 2026-07-02 ben duoi.)
-- **Auth**: dung thu vien session/cookie cho Streamlit (vd. `streamlit-authenticator`,
-  `extra-streamlit-components`) thay vi JWT+refresh token kieu web framework thuan.
 - **Subtitle editor (Phase 4) dung widget Streamlit thuan (`st.data_editor`),
   KHONG dung Custom Streamlit Component nhu du kien ban dau.** Ly do doi huong
   (2026-07-02): viet mot Streamlit Component that can Node.js/npm de build va
   kiem thu bundle JS/React - moi truong viet code khong co cong cu do (tuong tu
   ly do khong co Python that), nen code React chua tung duoc build la rui ro
   cao hon han. Nang cap len timeline/waveform keo-tha that su la viec lam sau.
-- **KHONG co thanh toan tu dong trong app (quyet dinh 2026-07-02):** nguoi dung
-  xac nhan khong can thanh toan qua app. Da xoa toan bo tich hop Stripe
-  (`stripe_service.py`, `webhook_app.py`, cac bien env STRIPE_*). Van GIU khai
-  niem goi Free/Pro + gioi han phut/thang (`app/billing/plans.py`, `usage.py`,
-  `SubscriptionRepository`) - nang user len Pro lam THU CONG bang cach cap nhat
-  bang `subscriptions` trong DB (goi `SubscriptionRepository.upsert(user_id,
-  PlanTier.PRO)`).
-
 ## 3. Rang buoc moi truong quan trong (BAT BUOC DOC)
 
 - **May dev THAT** (noi se chay/test pipeline AI): RTX 4050 Laptop 6GB VRAM,
@@ -119,9 +109,10 @@ subtitle -> dich da ngon ngu -> export SRT/VTT/ASS/TXT/JSON.
 5. Da ngon ngu + toi uu cau subtitle (code xong, **CHUA chay, rui ro cao nhat**)
 5b. Long tieng (Dubbing/TTS) - MMS-TTS + ghep audio vao video, xem muc 6i
     (code xong 2026-07-03, **CHUA chay, rui ro cao nhat cua toan bo du an**)
-6. Auth/User Management trong Streamlit (code xong, **CHUA chay**)
-7. Goi cuoc + gioi han usage - **DA BO gioi han/chan upload (2026-07-03),
-   du an chuyen thanh ca nhan/phi thuong mai**, xem "Quyet dinh moi"
+6. Auth/User Management - **DA XOA HOAN TOAN (2026-07-03)**, du an la tool
+   ca nhan, khong con da nguoi dung, xem "Quyet dinh moi"
+7. Goi cuoc + gioi han usage - **DA XOA HOAN TOAN (2026-07-03)** cung luc voi
+   Auth, khong con thuong mai/SaaS, xem "Quyet dinh moi"
 8. Bao mat nang cao + Ha tang Production - MOT PHAN: storage S3 abstraction + CI
    da co code, **CHUA lam**: secrets manager that, deploy multi-instance
 9. Monitoring/Scale nang cao - **CO CHU DICH CHUA LAM** (Prometheus/Grafana,
@@ -341,62 +332,22 @@ trong toan bo cac adapter da viet.**
 "Dich va xuat file moi", theo doi log Celery worker de biet loi cu the neu co
 (rat co the co loi o lan chay dau vi API `transformers` chua duoc xac minh).
 
-## 6f. Phase 6 - Auth/User Management
+## 6f. Phase 6 - Auth/User Management (DA XOA)
 
-**Muc tieu:** Dang ky/dang nhap, moi user chi thay job cua minh.
+**Da xoa hoan toan ngay 2026-07-03** theo yeu cau nguoi dung: du an la tool ca
+nhan, khong can dang ky/dang nhap/phan quyen theo user. Da xoa `app/auth/`
+(`security.py`, `repository.py`, `streamlit_helpers.py`), model `User`, cot
+`Job.user_id`, dependency `bcrypt`/`pyjwt`/`extra-streamlit-components`, bien
+env `SESSION_SECRET_KEY`. Xem "Quyet dinh moi" de biet chi tiet + anh huong
+schema DB (can reset DB, xem muc 8).
 
-**Trang thai:** Code xong (2026-07-02), **CHUA chay thu, CHUA kiem thu tren
-trinh duyet that.**
+## 6g. Phase 7 - Goi cuoc + gioi han usage (DA XOA)
 
-**Kien truc:**
-- `app/db/models.py` them `User` (email, password_hash, created_at). `Job` them
-  `user_id` (bat buoc, khong con nullable).
-- `app/auth/security.py` - `hash_password`/`verify_password` (bcrypt),
-  `create_session_token`/`verify_session_token` (JWT, can `SESSION_SECRET_KEY`).
-  Co test (`tests/test_security.py`).
-- `app/auth/repository.py` - `UserRepository` (cung mau DI voi JobRepository).
-  Co test (`tests/test_user_repository.py`).
-- `app/auth/streamlit_helpers.py` - `require_login()` (hien form dang nhap/dang
-  ky inline neu chua dang nhap, `st.stop()` neu chua xac thuc), `logout()`.
-  Session luu qua cookie (`extra-streamlit-components` CookieManager) vi
-  Streamlit khong co session/cookie manager rieng - **day la phan CHUA duoc
-  kiem thu tren trinh duyet that, co the co van de tuong thich phien ban
-  `extra-streamlit-components`.**
-- Upload/Dashboard/Editor deu goi `require_login()` o dau trang va loc job theo
-  `user.id` (`JobRepository.list_by_user`).
-
-**Viec can lam:** Mo `streamlit run app/Home.py`, vao trang Upload -> se thay
-form dang nhap/dang ky -> dang ky tai khoan moi -> xac nhan job chi hien thi
-cho dung user do (tao 2 tai khoan, kiem tra tai khoan A khong thay job cua B).
-
-## 6g. Phase 7 - Goi cuoc + gioi han usage (khong co thanh toan tu dong)
-
-**Muc tieu:** Goi Free (30 phut/thang) va Pro (1000 phut/thang), gioi han
-usage truoc khi cho tao job moi. KHONG co thanh toan trong app (xem "Quyet
-dinh moi" 2026-07-02) - nang goi lam thu cong qua DB.
-
-**Trang thai:** Code xong (2026-07-02, don lai sau khi bo Stripe), **CHUA chay thu.**
-
-**Kien truc:**
-- `app/db/models.py` - `PlanTier` (free/pro), `Subscription` (user_id, plan,
-  updated_at - khong con truong Stripe).
-- `app/billing/plans.py` - `PLAN_CATALOG` dinh nghia gioi han phut/thang moi goi.
-- `app/billing/usage.py` - `monthly_minutes_used()`, uoc luong thoi luong da xu
-  ly tu timestamp `end` cuoi cung trong file JSON ket qua (khong can them
-  dependency ffprobe). Co test (`tests/test_usage.py`).
-- `app/billing/repository.py` - `SubscriptionRepository` (get_by_user/upsert).
-  Co test.
-- `app/pages/4_Billing.py` - xem goi hien tai + thanh usage trong thang.
-- `app/pages/1_Upload.py` - chan tao job moi neu da vuot gioi han phut/thang
-  cua goi hien tai; them kiem tra dinh dang/kich thuoc file (Phase 8).
-
-**Cach nang 1 user len Pro (thu cong):** mo Python shell tren may chay app:
-`from app.billing.repository import SubscriptionRepository` roi
-`from app.db.models import PlanTier` va goi
-`SubscriptionRepository().upsert("<user_id>", PlanTier.PRO)`.
-
-**Viec can lam:** Sau khi co tai khoan (Phase 6), kiem tra trang Billing hien
-dung goi Free + usage; tao du job vuot 30 phut de xac nhan Upload bi chan.
+**Da xoa hoan toan ngay 2026-07-03** cung luc voi Auth (khong con Auth thi
+khong con khai niem "usage cua 1 user" de gioi han) - du an khong con huong
+toi SaaS thuong mai. Da xoa `app/billing/` (`plans.py`, `usage.py`,
+`repository.py`), `app/pages/4_Billing.py`, model `PlanTier`/`Subscription`.
+Xem "Quyet dinh moi" de biet chi tiet.
 
 ## 6h. Phase 8 - Bao mat + Ha tang Production (mot phan)
 
@@ -551,8 +502,21 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   giong nghe khong tu nhien (nhanh/cham bat thuong) - chua co gioi han canh
   bao hay fallback nao khac ngoai viec chia nho factor cho hop le voi ffmpeg.
 - **`edge-tts` can INTERNET on dinh cho MOI segment** - video dai nhieu cau se
-  goi API nhieu lan, mang cham/mat ket noi giua chung se lam job that bai giua
-  chung (chua co retry/backoff).
+  goi API nhieu lan. **DA SUA (2026-07-03 lan 3, sau khi gap loi that tren may
+  dev)**: `dub_and_export()` gio bo qua segment co text rong/chi khoang trang
+  (nguyen nhan thuc te gay loi edge-tts "No audio was received. Please verify
+  that your parameters are correct." - segment rong khong the TTS), va tu
+  retry toi da 3 lan (cach nhau 2s) cho loi mang/API thoang qua truoc khi bo
+  qua han 1 segment (de lai khoang lang trong video, khong lam fail ca job).
+- **2026-07-03 lan 4 - SUA loi giong doc bi ngat quang/loi giua chung** (nguoi
+  dung phat hien qua file `.vi.json` thuc te): `optimize_segments()`
+  (`application/optimize.py`) chen ky tu xuong dong vao `text` de ngat dong
+  HIEN THI tren phu de (toi da 42 ky tu/dong) - nhung `dub_and_export()`
+  truoc do dua thang chuoi co xuong dong nay vao TTS, lam giong doc bi
+  ngat/loi. Them ham thuan `_clean_text_for_speech()` de gop text ve 1 dong
+  lien tuc TRUOC KHI dua vao TTS - CHI anh huong dau vao TTS, khong dung toi
+  file phu de xuat ra (van giu nguyen dinh dang xuong dong dung chuan). Co
+  test (`tests/test_dub.py`).
 
 **Viec can lam tren may dev that:**
 1. `pip install -r requirements.txt` (cai `edge-tts`/`soundfile` moi them).
@@ -639,6 +603,25 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   cung). Ly do quyet dinh nay lien quan truc tiep: vi khong con rang buoc
   thuong mai nen viec chon model TTS non-commercial license (MMS-TTS,
   CC-BY-NC) o tren cung khong con la van de.
+- **2026-07-03 - XOA HOAN TOAN Auth (Phase 6) + Billing (Phase 7), khong con
+  gioi han "chi bo phan chan" nhu quyet dinh truoc:** nguoi dung yeu cau ro
+  "coi source nay chi la Tool ca nhan thoi... bo di luon phan dang nhap Authen
+  cac kieu... xoa luon phan billing va cach tinh toan thoi gian". Khac voi
+  quyet dinh 2026-07-03 phia tren (chi tat gioi han, giu code billing lai),
+  lan nay xoa SACH:
+  - `app/auth/` (`security.py`, `repository.py`, `streamlit_helpers.py`),
+    model `User`.
+  - `app/billing/` (`plans.py`, `usage.py`, `repository.py`),
+    `app/pages/4_Billing.py`, model `PlanTier`/`Subscription`.
+  - Cot `Job.user_id` (khong con khai niem "chu so huu job" - moi job hien
+    thi cho tat ca, tool 1 nguoi dung).
+  - Dependency `bcrypt`, `pyjwt`, `extra-streamlit-components`; bien env
+    `SESSION_SECRET_KEY`.
+  - `JobRepository.list_by_user()` -> cac trang gio dung `list_all()`.
+  - `require_login()` bi go khoi `1_Upload.py`, `2_Dashboard.py`,
+    `3_Editor.py`; `Home.py` bo hien thi trang thai dang nhap.
+  **Anh huong DB:** day la thay doi schema (bo cot/bang) - `create_all()`
+  KHONG tu xoa cot/bang cu, xem canh bao reset DB o muc 8.
 
 ## 8. Van de dang mo / can quyet dinh
 
@@ -658,11 +641,13 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   vua doi (xem "Quyet dinh moi") - can chay lai tu dau: `check_env.py` roi
   `run_all.py` de xac nhan cac script step0X hoat dong dung sau refactor, truoc
   khi tin tuong so lieu.
-- **Chua xac minh Phase 2 tren may that** - dac biet: giai phong VRAM giua cac
-  buoc trong CUNG 1 process (`subtitle_pipeline/infrastructure/gpu.py`) co du
-  tranh OOM khi chay lien tiep denoise -> transcribe -> align -> diarize hay
-  khong. Neu OOM, phuong an du phong: chay tung buoc trong subprocess rieng
-  (nhu `phase1_feasibility/run_all.py`) thay vi trong cung 1 process Celery task.
+- **Phase 2: logic dieu phoi da duoc `pytest` xac nhan (2026-07-03, xem muc
+  9), nhung CHUA chay voi model AI that/GPU that** - dac biet: giai phong VRAM
+  giua cac buoc trong CUNG 1 process (`subtitle_pipeline/infrastructure/gpu.py`)
+  co du tranh OOM khi chay lien tiep denoise -> transcribe -> align -> diarize
+  hay khong. Neu OOM, phuong an du phong: chay tung buoc trong subprocess
+  rieng (nhu `phase1_feasibility/run_all.py`) thay vi trong cung 1 process
+  Celery task.
 - **Chua xac minh Phase 3 tren may that** - toan bo (docker-compose Postgres/
   Redis, Celery worker, Streamlit multipage, doan them sys.path thu cong o dau
   moi file trong `app/`) chua duoc chay lan nao. Rui ro cao nhat: loi import do
@@ -672,33 +657,30 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
 - ~~Repo chua push len GitHub~~ - DA push toan bo Phase 2-8 len
   github.com/DauDinhQuangAnh/testai (2026-07-02) de mang qua may dev that.
 - **Chua xac minh Phase 4-8 tren may that** - TOAN BO code Editor, dich thuat,
-  auth, billing, storage abstraction, CI moi chi duoc viet va ra soat bang mat
-  (khong chay), do sandbox viet code khong co Python that. Danh sach rui ro
-  rieng cua tung phan:
+  storage abstraction, CI moi chi duoc viet va ra soat bang mat (khong chay),
+  do sandbox viet code khong co Python that. Danh sach rui ro rieng cua tung
+  phan:
   - **Phase 4 (Editor):** `st.data_editor` voi `num_rows="dynamic"` co the co
     hanh vi khac ky vong o phien ban Streamlit cu the; `pd.isna()` xu ly gia
     tri thieu trong cot `speaker` chua duoc kiem chung thuc te.
-  - **Phase 5 (Dich - RUI RO CAO NHAT):** `NLLBTranslator` dung
-    `tokenizer.convert_tokens_to_ids()` + `model.generate(forced_bos_token_id=...)`
-    - cach goi nay hoan toan chua duoc chay thu, kha nang cao se can sua lai
-    tham so hoac cach lay ma ngon ngu khi test that (xem docstring trong
-    `translator_nllb.py`). Model `nllb-200-distilled-600M` (~2.4GB) can tai ve
-    lan dau, cong them VRAM/RAM - CHUA do duoc anh huong toi rang buoc 6GB VRAM.
-  - **Phase 6 (Auth):** Luu session qua cookie bang
-    `extra-streamlit-components` - thu vien nay co lich su cham cap nhat theo
-    Streamlit, co the khong tuong thich voi `streamlit>=1.35`. Neu loi, phuong
-    an du phong: dung `st.session_state` don thuan (mat dang nhap khi tai lai
-    trang) trong luc cho fix.
-  - **Phase 7 (Goi cuoc):** `monthly_minutes_used()` la UOC LUONG (dua vao
-    timestamp cuoi cung trong JSON, khong phai thoi luong file that) - co the
-    sai lech nho. (Stripe da bo hoan toan 2026-07-02 nen khong con rui ro
-    tich hop thanh toan.)
+  - **Phase 5 (Dich - RUI RO CAO NHAT truoc khi co Phase 5b):** `NLLBTranslator`
+    dung `tokenizer.convert_tokens_to_ids()` +
+    `model.generate(forced_bos_token_id=...)` - cach goi nay hoan toan chua
+    duoc chay thu, kha nang cao se can sua lai tham so hoac cach lay ma ngon
+    ngu khi test that (xem docstring trong `translator_nllb.py`). Model
+    `nllb-200-distilled-600M` (~2.4GB) can tai ve lan dau, cong them VRAM/RAM.
   - **Phase 8:** `app/storage.py` (S3Storage) hoan toan chua test (can AWS
     that); CHUA duoc noi vao luong Upload/Editor/Celery task hien co.
-  - **Tich hop cheo:** Them `user_id` bat buoc vao `Job` la thay doi schema -
-    neu co du lieu Job cu trong DB that (khong co tren may nao vi chua chay
-    lan nao) se can migration; hien tai khong van de vi DB luon duoc tao moi
-    tu `Base.metadata.create_all()`.
+- **DB schema vua thay doi (2026-07-03, bo Auth/Billing) - CAN RESET DB truoc
+  khi chay lai:** bang `jobs` cu (neu da tung chay `docker compose up` va tao
+  job that) co the con cot `user_id NOT NULL` va bang `users`/`subscriptions`
+  cu - model Python moi khong con cac truong/bang nay.
+  `Base.metadata.create_all()` (`app/db/session.py`) CHI tao bang con thieu,
+  KHONG tu ALTER bang da ton tai - neu khong reset, insert Job moi se loi vi
+  pham NOT NULL tren cot `user_id` cu. Cach reset (XOA HET DU LIEU JOB CU,
+  chi lam neu khong can giu job cu): `docker compose down -v` roi
+  `docker compose up -d` de tao lai volume Postgres sach, hoac
+  `DROP TABLE jobs, users, subscriptions CASCADE;` thu cong qua `psql`.
 - **Phase 5b da chay thu 1 lan tren may that voi MMS-TTS - chat luong giong
   qua te, da doi sang `edge-tts` (xem muc 6i "Cap nhat 2026-07-03 lan 2").
   Ban `edge-tts` CHUA duoc chay thu end-to-end lan nao:**
@@ -717,14 +699,12 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
     truong hop hiem, chua xu ly).
 - **Uu tien thu tu kiem thu tren may dev that de cach ly loi hieu qua:**
   Phase 1 (`check_env.py` + `run_all.py`) -> Phase 2 CLI -> `pytest` toan bo
-  (bao gom cac test moi: `test_optimize.py`, `test_security.py`,
-  `test_user_repository.py`, `test_subscription_repository.py`,
-  `test_usage.py`, `test_storage.py`, `test_audio_timing.py`,
-  `test_audio_mux.py`) -> Phase 3 web UI (Upload/Dashboard, luu y Upload gio
-  chay het ca transcribe+dich+long tieng trong 1 job - xem muc 6i) -> Phase 6
-  (dang ky/dang nhap - BAT BUOC truoc vi Upload/Dashboard/Editor deu can dang
-  nhap) -> Phase 4 (Editor) -> Phase 5 (dich) -> Phase 5b (long tieng, rui ro
-  cao nhat, test sau cung) -> Phase 8.
+  (bao gom `test_optimize.py`, `test_storage.py`, `test_audio_timing.py`,
+  `test_audio_mux.py`, `test_dub.py`, `test_job_repository.py`) -> Phase 3 web
+  UI (Upload/Dashboard, luu y Upload gio chay het ca transcribe+dich+long
+  tieng trong 1 job, khong con can dang nhap - xem muc 6i) -> Phase 4
+  (Editor) -> Phase 5 (dich) -> Phase 5b (long tieng, rui ro cao nhat, test
+  sau cung) -> Phase 8.
 
 ## 9. Nhat ky cap nhat
 
@@ -795,3 +775,46 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   gian, clip TTS tam) ngay sau khi long tieng xong, chi giu lai file ket qua
   trong thu muc output - theo yeu cau nguoi dung "xoa file khong can thiet,
   de lai ket qua thoi".
+- 2026-07-03 (lan 3): Sau khi cai `edge-tts` va chay thu, gap loi
+  "No module named 'edge_tts'" (chua `pip install`, da cai truc tiep vao
+  venv), roi loi edge-tts "No audio was received..." khi chay job that. Them
+  co che retry (3 lan, cach 2s) + bo qua segment text rong trong
+  `dub_and_export()` de job khong fail toan bo vi 1 segment loi.
+- 2026-07-03 (lan 4): Nguoi dung phat hien giong doc bi ngat quang/loi khi
+  xem file `.vi.json` thuc te - phat hien nguyen nhan: `optimize_segments()`
+  chen ky tu xuong dong vao `text` de ngat dong hien thi phu de, nhung
+  `dub_and_export()` dua thang text co xuong dong do vao TTS. Them ham
+  `_clean_text_for_speech()` de gop text ve 1 dong truoc khi TTS (khong anh
+  huong file phu de xuat ra). Co test moi `tests/test_dub.py`.
+- 2026-07-03 (lan 5): XOA HOAN TOAN Auth (Phase 6) + Billing (Phase 7) theo
+  yeu cau nguoi dung ("coi source nay chi la Tool ca nhan thoi"). Xoa
+  `app/auth/`, `app/billing/`, `app/pages/4_Billing.py`, model
+  `User`/`PlanTier`/`Subscription`, cot `Job.user_id`,
+  `JobRepository.list_by_user()`, dependency `bcrypt`/`pyjwt`/
+  `extra-streamlit-components`, bien env `SESSION_SECRET_KEY`. Bo
+  `require_login()` khoi `1_Upload.py`/`2_Dashboard.py`/`3_Editor.py`, don
+  `Home.py`. Xoa test `test_security.py`/`test_user_repository.py`/
+  `test_subscription_repository.py`/`test_usage.py`, sua `test_job_repository.py`
+  cho schema moi (bo `user_id`). **CAN RESET DB** (xem muc 8) vi bang `jobs` cu
+  co the con cot `user_id NOT NULL`.
+- 2026-07-03 (lan 6): **LAN DAU chay `ruff check`/`ruff format`/`pytest` THAT
+  tren may dev (truoc gio chi ra soat bang mat do sandbox khong co Python).**
+  Sua `JobStatus` sang `enum.StrEnum` (UP042). Phat hien + sua 2 bug CO TU
+  TRUOC (Phase 2, chua tung chay) qua pytest that:
+  - `tests/test_pipeline.py::test_run_merges_speaker_into_segments`: fixture
+    `_make_pipeline()` khong set `hf_token`, khien `TranscriptionPipeline.run()`
+    am tham bo qua diarization (dung dung y `test_run_without_hf_token_skips_diarization`)
+    - `FakeDiarizer` inject vao test khong bao gio duoc goi, ket qua speaker
+    luon la `None` thay vi `SPEAKER_00`/`SPEAKER_01`. Sua: them
+    `hf_token="fake-token"` vao `PipelineConfig()` cua fixture.
+  - `tests/test_merge.py::test_merge_assigns_dominant_overlapping_speaker`:
+    fixture co 2 turn overlap **hoa diem tuyet doi** (ca hai deu 1.0s) voi
+    segment - `_dominant_speaker()` (`application/merge.py`) dung
+    `if overlap > best_overlap` (strict greater-than) nen turn dau tien thang
+    khi hoa, nhung test lai assert turn THU HAI thang. Sua fixture de overlap
+    chenh lech ro rang (khong sua logic `merge_speakers`, van giu quy tac
+    "turn dau tien thang khi hoa diem" - hop ly, khong can doi).
+  - Sua tolerance qua chat trong `tests/test_audio_mux.py` (viet trong phien
+    nay) - `soundfile.write` mac dinh ghi wav dang PCM_16 (co luong tu hoa
+    ~3e-5), vuot nguong mac dinh cua `np.allclose`; tang `atol=1e-3`.
+  Ket qua: **33/33 test pass, `ruff check` sach.**

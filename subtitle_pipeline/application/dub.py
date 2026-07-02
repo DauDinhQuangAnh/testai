@@ -10,7 +10,9 @@ transcribe lan cac clip TTS/track am thanh tam) - chi giu lai file ket qua
 trong `out_dir` (phu de + video da long tieng). Xem HANDOFF.md Phase 5b,
 quyet dinh don file 2026-07-03.
 """
+
 import shutil
+import time
 from pathlib import Path
 
 from subtitle_pipeline.domain.models import SubtitleSegment
@@ -22,6 +24,8 @@ from subtitle_pipeline.infrastructure.audio_timing import (
 from subtitle_pipeline.infrastructure.tts_edge import EdgeTTSSynthesizer
 
 MIN_SEGMENT_DURATION_SECONDS = 0.05
+MAX_SYNTHESIZE_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = 2.0
 
 
 def _total_duration(work_dir: Path, source_video: Path) -> float:
@@ -32,6 +36,32 @@ def _total_duration(work_dir: Path, source_video: Path) -> float:
         info = sf.info(str(denoised_audio))
         return info.frames / info.samplerate
     return probe_duration_seconds(source_video)
+
+
+def _clean_text_for_speech(text: str) -> str:
+    """`optimize_segments()` (application/optimize.py) chen `\\n` vao text de
+    ngat dong HIEN THI tren phu de (vd. toi da 42 ky tu/dong) - dua thang
+    chuoi co `\\n` do vao TTS lam giong doc bi ngat quang/loi giua chung. TTS
+    chi can 1 cau lien tuc, khong lien quan gi toi cach ngat dong phu de.
+    """
+    return " ".join(text.split())
+
+
+def _synthesize_with_retry(tts: EdgeTTSSynthesizer, text: str, output_path: Path) -> bool:
+    """edge-tts thinh thoang loi mang/API thoang qua (xem HANDOFF.md Phase
+    5b) - thu lai toi da MAX_SYNTHESIZE_ATTEMPTS lan truoc khi bo qua han
+    segment nay (de lai khoang lang thay vi lam that bai ca job).
+    """
+    for attempt in range(1, MAX_SYNTHESIZE_ATTEMPTS + 1):
+        try:
+            tts.synthesize(text, output_path)
+            return True
+        except Exception as exc:
+            if attempt == MAX_SYNTHESIZE_ATTEMPTS:
+                print(f"[dub] Bo qua segment sau {attempt} lan loi: {exc}")
+                return False
+            time.sleep(RETRY_BACKOFF_SECONDS)
+    return False
 
 
 def dub_and_export(
@@ -48,8 +78,13 @@ def dub_and_export(
     stretched_clips: list[tuple[float, Path]] = []
     with EdgeTTSSynthesizer(target_language) as tts:
         for i, seg in enumerate(segments):
+            text = _clean_text_for_speech(seg.text)
+            if not text:
+                continue
+
             raw_clip = segment_dir / f"{i:05d}_raw.wav"
-            tts.synthesize(seg.text, raw_clip)
+            if not _synthesize_with_retry(tts, text, raw_clip):
+                continue
 
             duration = max(seg.end - seg.start, MIN_SEGMENT_DURATION_SECONDS)
             stretched_clip = segment_dir / f"{i:05d}_stretched.wav"

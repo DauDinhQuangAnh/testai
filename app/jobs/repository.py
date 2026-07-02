@@ -5,6 +5,7 @@ make_session_factory()) thay vi import thang mot session global - nho vay test
 duoc bang SQLite in-memory ma khong can Postgres chay (xem
 tests/test_job_repository.py).
 """
+
 import uuid
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -25,13 +26,11 @@ class JobRepository:
         filename: str,
         input_path: Path,
         output_dir: Path,
-        user_id: str,
         job_id: str | None = None,
     ) -> Job:
         with self._session_factory() as session:
             job = Job(
                 id=job_id or str(uuid.uuid4()),
-                user_id=user_id,
                 filename=filename,
                 input_path=str(input_path),
                 output_dir=str(output_dir),
@@ -49,11 +48,6 @@ class JobRepository:
     def list_all(self) -> Sequence[Job]:
         with self._session_factory() as session:
             return session.scalars(select(Job).order_by(Job.created_at.desc())).all()
-
-    def list_by_user(self, user_id: str) -> Sequence[Job]:
-        with self._session_factory() as session:
-            stmt = select(Job).where(Job.user_id == user_id).order_by(Job.created_at.desc())
-            return session.scalars(stmt).all()
 
     def delete(self, job_id: str) -> None:
         with self._session_factory() as session:

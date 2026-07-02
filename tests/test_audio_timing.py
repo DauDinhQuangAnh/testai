@@ -1,4 +1,5 @@
 """Test _clamp_atempo_factors - logic thuan, khong goi ffmpeg that."""
+
 import pytest
 
 from subtitle_pipeline.infrastructure.audio_timing import _clamp_atempo_factors

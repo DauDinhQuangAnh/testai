@@ -1,35 +1,40 @@
 # AI Subtitle Studio - Tong quan du an
 
-Du an dai han: xay dung "AI Subtitle Studio" - website tu dong tao/chinh sua phu
-de tu video/audio (kieu CapCut AI Subtitle, Veed.io, Descript, WhisperX), tu trien
-khai toan bo pipeline AI ma nguon mo (FFmpeg -> DeepFilterNet3 -> Silero VAD ->
-Faster-Whisper large-v3 -> WhisperX align -> pyannote diarization -> dich da ngon
-ngu -> export SRT/VTT/ASS/TXT/JSON), huong toi SaaS thuong mai that.
+Du an: "AI Subtitle Studio" - **tool ca nhan** (khong con huong toi SaaS
+thuong mai - xem quyet dinh 2026-07-03 ben duoi) tu dong tao/chinh sua phu de
++ long tieng tu video/audio, tu trien khai toan bo pipeline AI ma nguon mo
+(FFmpeg -> DeepFilterNet3 -> Silero VAD -> Faster-Whisper large-v3 -> WhisperX
+align -> pyannote diarization -> dich da ngon ngu -> TTS long tieng -> export
+SRT/VTT/ASS/TXT/JSON + video da long tieng).
+
+**Quyet dinh 2026-07-03 - bo huong SaaS, chuyen thanh tool ca nhan:** nguoi
+dung xac nhan khong can thanh toan/da nguoi dung nua. Da xoa hoan toan Auth
+(dang ky/dang nhap) va Billing (goi cuoc/gioi han usage) - xem HANDOFF.md muc
+6f/6g/7. Khong con can can nhac license thuong mai khi chon model AI (vd. TTS
+- xem tts_edge.py).
 
 ## Quyet dinh kien truc quan trong (chot ngay 2026-07-01)
 
-- Frontend/backend UI dung **Streamlit xuyen suot, ke ca ban thuong mai sau nay**
-  (khong dung Next.js). Streamlit goi truc tiep ham Python, khong qua REST
-  API/FastAPI.
+- Frontend/backend UI dung **Streamlit xuyen suot** (khong dung Next.js).
+  Streamlit goi truc tiep ham Python, khong qua REST API/FastAPI.
 - Celery + Redis + Postgres van giu de serialize job GPU nang va luu trang thai
   job (khong phai lam REST API).
-- 1 ngoai le co the can ha tang HTTP rieng: deploy multi-instance Streamlit
-  sau nay. (Truoc day co ngoai le Stripe webhook, nhung da BO thanh toan tu
-  dong trong app tu 2026-07-02 - goi Free/Pro van con, nang goi thu cong qua DB.)
 - Subtitle editor (timeline/waveform) se can Custom Streamlit Component (React
-  nho nhung vao Streamlit).
+  nho nhung vao Streamlit) - hien dang dung `st.data_editor` thuan cho v1.
 
-## Roadmap 9 phase (tom tat - xem HANDOFF.md de biet trang thai chi tiet/hien tai)
+## Roadmap (tom tat - xem HANDOFF.md de biet trang thai chi tiet/hien tai)
 
 1. Feasibility Spike AI pipeline tren may dev
 2. AI Pipeline Core (dong goi module hoa, CLI)
 3. Streamlit App - Upload + Job Dashboard
 4. Subtitle Editor (Custom Streamlit Component)
 5. Da ngon ngu + toi uu cau subtitle
-6. Auth/User Management trong Streamlit
-7. Goi cuoc + gioi han usage (khong co thanh toan tu dong - bo Stripe 2026-07-02)
+5b. Long tieng (Dubbing/TTS) - edge-tts + ghep audio vao video
+6. ~~Auth/User Management~~ - DA XOA 2026-07-03 (tool ca nhan)
+7. ~~Goi cuoc + gioi han usage~~ - DA XOA 2026-07-03 (khong con SaaS)
 8. Bao mat nang cao + Ha tang Production
-9. Monitoring/Scale nang cao - chi lam khi co traffic/user that
+9. Monitoring/Scale nang cao - chi lam khi co traffic/user that (kha nang
+   khong con can thiet vi la tool ca nhan)
 
 ## Ly do cac quyet dinh tren
 

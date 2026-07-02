@@ -9,6 +9,7 @@ Python that - xem docs/memory/dev-machine-rtx4050.md), nen code React chua tung
 duoc build la rui ro cao hon han Python. Nang cap len timeline/waveform keo-tha
 that su la viec lam sau, khi co moi truong build/test JS ro rang.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -22,7 +23,6 @@ for _parent in Path(__file__).resolve().parents:
             sys.path.insert(0, str(_parent))
         break
 
-from app.auth.streamlit_helpers import require_login
 from app.db.models import JobStatus
 from app.jobs.repository import JobRepository
 from app.jobs.tasks import dub_job, translate_job
@@ -31,11 +31,10 @@ from subtitle_pipeline.export.formats import FORMAT_WRITERS
 from subtitle_pipeline.infrastructure.translator_nllb import SUPPORTED_LANGUAGES
 
 st.set_page_config(page_title="Editor - AI Subtitle Studio")
-user = require_login()
 st.title("Subtitle Editor")
 
 repo = JobRepository()
-done_jobs = [j for j in repo.list_by_user(user.id) if j.status == JobStatus.DONE]
+done_jobs = [j for j in repo.list_all() if j.status == JobStatus.DONE]
 
 if not done_jobs:
     st.info("Chua co job nao hoan thanh. Vao trang Upload de tao job moi.")
@@ -115,9 +114,7 @@ st.caption(
     "Giong doc la giong chuan (chua ho tro clone giong goc trong ban nay - "
     "xem HANDOFF.md Phase 5b)."
 )
-dub_target_language = st.selectbox(
-    "Ngon ngu long tieng", SUPPORTED_LANGUAGES, key="dub-language"
-)
+dub_target_language = st.selectbox("Ngon ngu long tieng", SUPPORTED_LANGUAGES, key="dub-language")
 if st.button("Dich + Long tieng"):
     dub_job.delay(job.id, dub_target_language)
     st.info(

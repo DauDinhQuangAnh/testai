@@ -18,6 +18,7 @@ nhat (`pip install -U edge-tts`) truoc. Neu can bo phu thuoc internet hoan
 toan sau nay, xem lai VieNeu-TTS (github.com/pnnbao97/VieNeu-TTS) - TTS tieng
 Viet local/GPU, co voice cloning, nhung chua duoc thu nghiem trong du an nay.
 """
+
 import subprocess
 from pathlib import Path
 
@@ -71,8 +72,14 @@ class EdgeTTSSynthesizer:
         # rate co dinh - de tuong thich voi audio_timing.py/audio_mux.py, cung
         # dinh dang voi ket qua cac adapter TTS local khac neu doi lai sau nay.
         cmd = [
-            "ffmpeg", "-y", "-i", str(mp3_path),
-            "-ar", str(OUTPUT_SAMPLE_RATE), "-ac", "1",
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(mp3_path),
+            "-ar",
+            str(OUTPUT_SAMPLE_RATE),
+            "-ac",
+            "1",
             str(output_path),
         ]
         subprocess.run(cmd, check=True, capture_output=True, text=True)

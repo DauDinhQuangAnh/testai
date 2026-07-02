@@ -31,10 +31,5 @@ sentencepiece>=0.2.0
 soundfile>=0.12.1
 edge-tts>=6.1.9
 
-# Phase 6 - Auth
-bcrypt>=4.1.0
-pyjwt>=2.9.0
-extra-streamlit-components>=0.1.71
-
 # Phase 8 - Production storage (S3/MinIO)
 boto3>=1.34.0

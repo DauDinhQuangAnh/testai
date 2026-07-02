@@ -2,6 +2,7 @@
 va xoa job (ca record DB lan file tren dia - xem nut "Xoa job" ben duoi, du an
 ca nhan nen xoa thang khong can thung rac/soft-delete).
 """
+
 import shutil
 import sys
 from pathlib import Path
@@ -14,19 +15,17 @@ for _parent in Path(__file__).resolve().parents:
             sys.path.insert(0, str(_parent))
         break
 
-from app.auth.streamlit_helpers import require_login
 from app.db.models import JobStatus
 from app.jobs.repository import JobRepository
 
 st.set_page_config(page_title="Dashboard - AI Subtitle Studio")
-user = require_login()
 st.title("Dashboard job")
 
 if st.button("Lam moi"):
     st.rerun()
 
 repo = JobRepository()
-jobs = repo.list_by_user(user.id)
+jobs = repo.list_all()
 
 if not jobs:
     st.info("Chua co job nao. Vao trang Upload de tao job moi.")

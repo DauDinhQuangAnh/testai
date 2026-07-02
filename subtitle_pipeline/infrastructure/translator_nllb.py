@@ -11,6 +11,7 @@ the sai: ten tham so co the doi giua cac phien ban `transformers`, hoac
 `convert_tokens_to_ids` tuy phien ban. Xem HANDOFF.md Phase 5 truoc khi tin
 tuong ket qua dich.
 """
+
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.infrastructure.gpu import release_gpu_memory
 

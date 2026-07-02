@@ -1,6 +1,7 @@
 """Test build_dub_track - dung soundfile/numpy tao clip gia, khong can model
 TTS/ffmpeg that.
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -27,9 +28,11 @@ def test_clips_placed_at_correct_offset(tmp_path: Path):
     track, rate = sf.read(output_path, dtype="float32")
     assert rate == sample_rate
     assert len(track) == sample_rate
-    assert np.allclose(track[:200], 1.0)
-    assert np.allclose(track[500:600], 0.5)
-    assert np.allclose(track[600:], 0.0)
+    # atol noi long vi soundfile ghi wav mac dinh o PCM_16 (co sai so luong tu
+    # hoa ~1/32768 khi doc lai), khong phai loi logic dat clip sai vi tri.
+    assert np.allclose(track[:200], 1.0, atol=1e-3)
+    assert np.allclose(track[500:600], 0.5, atol=1e-3)
+    assert np.allclose(track[600:], 0.0, atol=1e-3)
 
 
 def test_clip_beyond_total_duration_is_dropped(tmp_path: Path):

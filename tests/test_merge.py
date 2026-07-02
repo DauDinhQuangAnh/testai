@@ -1,4 +1,5 @@
 """Test logic gan speaker theo overlap lon nhat (application/merge.py)."""
+
 from subtitle_pipeline.application.merge import merge_speakers
 from subtitle_pipeline.domain.models import SpeakerTurn, SubtitleSegment
 
@@ -6,8 +7,11 @@ from subtitle_pipeline.domain.models import SpeakerTurn, SubtitleSegment
 def test_merge_assigns_dominant_overlapping_speaker():
     segments = [SubtitleSegment(start=0.0, end=2.0, text="hello")]
     turns = [
+        # Overlap voi A = 1.0s, voi B = 1.5s - chenh lech ro rang (khong hoa
+        # diem) de test phan biet dung dua tren overlap lon nhat, khong phai
+        # thu tu xuat hien trong danh sach turns.
         SpeakerTurn(start=0.0, end=1.0, speaker="A"),
-        SpeakerTurn(start=1.0, end=2.5, speaker="B"),
+        SpeakerTurn(start=0.5, end=3.0, speaker="B"),
     ]
 
     result = merge_speakers(segments, turns)

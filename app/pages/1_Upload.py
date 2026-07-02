@@ -3,9 +3,8 @@ task xu ly AI pipeline (Phase 2 - subtitle_pipeline). Chay qua: streamlit run
 app/Home.py (Streamlit tu nap file nay tu thu muc app/pages/).
 
 Kiem tra truoc khi tao job: (1) dinh dang file hop le, (2) kich thuoc file
-khong vuot gioi han. Khong con chan theo usage/goi cuoc - du an la ca nhan,
-khong thuong mai (xem HANDOFF.md, quyet dinh 2026-07-03 bo gioi han
-Free/Pro).
+khong vuot gioi han. Tool ca nhan, khong con da nguoi dung/dang nhap/gioi han
+usage (xem HANDOFF.md, quyet dinh 2026-07-03 bo Auth+Billing).
 
 Nguoi dung chon luon ngon ngu long tieng ngay tai day (thay vi phai vao Editor
 bam them buoc rieng) - 1 job DUY NHAT se chay het transcribe -> dich -> long
@@ -13,6 +12,7 @@ tieng, ra video hoan chinh (xem HANDOFF.md Phase 5b, quyet dinh gop flow
 2026-07-03). Trang Editor van giu nut thu cong de lam lai/doi ngon ngu khac
 sau nay.
 """
+
 import sys
 import uuid
 from pathlib import Path
@@ -25,7 +25,6 @@ for _parent in Path(__file__).resolve().parents:
             sys.path.insert(0, str(_parent))
         break
 
-from app.auth.streamlit_helpers import require_login
 from app.config import AppConfig
 from app.jobs.repository import JobRepository
 from app.jobs.tasks import process_video_job
@@ -35,15 +34,12 @@ ALLOWED_EXTENSIONS = {"mp4", "mkv", "mov", "wav", "mp3", "m4a"}
 MAX_FILE_SIZE_MB = 500
 
 st.set_page_config(page_title="Upload - AI Subtitle Studio")
-user = require_login()
 st.title("Upload video/audio")
 
 config = AppConfig.from_env()
 job_repo = JobRepository()
 
-uploaded_file = st.file_uploader(
-    "Chon file video/audio", type=sorted(ALLOWED_EXTENSIONS)
-)
+uploaded_file = st.file_uploader("Chon file video/audio", type=sorted(ALLOWED_EXTENSIONS))
 target_language = st.selectbox(
     "Ngon ngu long tieng",
     SUPPORTED_LANGUAGES,
@@ -73,7 +69,6 @@ if uploaded_file is not None:
             filename=uploaded_file.name,
             input_path=input_path,
             output_dir=job_dir / "output",
-            user_id=user.id,
             job_id=job_id,
         )
         process_video_job.delay(job.id, target_language)

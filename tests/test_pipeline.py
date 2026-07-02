@@ -1,5 +1,6 @@
 """Test orchestration logic cua TranscriptionPipeline bang fake adapter (khong
 can torch/faster-whisper/whisperx/pyannote/deepfilternet cai that)."""
+
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,10 @@ def _fake_extract_audio(input_path: Path, output_path: Path) -> None:
 
 def _make_pipeline(tmp_path: Path, transcriber_factory=None) -> TranscriptionPipeline:
     return TranscriptionPipeline(
-        config=PipelineConfig(),
+        # hf_token can duoc set de pipeline.run() thuc su goi diarizer_factory
+        # (xem application/pipeline.py) - thieu no se am tham bo qua diarization
+        # va lam FakeDiarizer ben duoi khong bao gio duoc goi.
+        config=PipelineConfig(hf_token="fake-token"),
         work_dir=tmp_path / "work",
         denoiser_factory=lambda: FakeDenoiser(),
         transcriber_factory=transcriber_factory or (lambda: FakeTranscriber()),
@@ -26,9 +30,7 @@ def _make_pipeline(tmp_path: Path, transcriber_factory=None) -> TranscriptionPip
 
 
 def test_run_merges_speaker_into_segments(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio
-    )
+    monkeypatch.setattr("subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio)
     pipeline = _make_pipeline(tmp_path)
 
     result = pipeline.run(tmp_path / "input.mp4")
@@ -38,9 +40,7 @@ def test_run_merges_speaker_into_segments(tmp_path, monkeypatch):
 
 
 def test_run_without_hf_token_skips_diarization(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio
-    )
+    monkeypatch.setattr("subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio)
     pipeline = TranscriptionPipeline(
         config=PipelineConfig(hf_token=None),
         work_dir=tmp_path / "work",
@@ -55,9 +55,7 @@ def test_run_without_hf_token_skips_diarization(tmp_path, monkeypatch):
 
 
 def test_stage_failure_wrapped_in_pipeline_stage_error(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio
-    )
+    monkeypatch.setattr("subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio)
 
     class BrokenTranscriber(FakeTranscriber):
         def transcribe(self, audio_path):
@@ -72,9 +70,7 @@ def test_stage_failure_wrapped_in_pipeline_stage_error(tmp_path, monkeypatch):
 
 
 def test_run_invokes_on_stage_callback_in_order(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio
-    )
+    monkeypatch.setattr("subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio)
     pipeline = _make_pipeline(tmp_path)
     stages: list[str] = []
 
