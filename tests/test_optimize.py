@@ -1,4 +1,5 @@
 """Test optimize_segments - logic thuan, khong can AI deps."""
+
 from subtitle_pipeline.application.optimize import optimize_segments
 from subtitle_pipeline.domain.models import SubtitleSegment
 
@@ -13,8 +14,7 @@ def test_short_text_stays_on_one_line():
 
 def test_wraps_long_text_without_losing_words():
     long_text = (
-        "day la mot cau rat dai can duoc chia thanh nhieu dong de kiem tra "
-        "gioi han ky tu moi dong"
+        "day la mot cau rat dai can duoc chia thanh nhieu dong de kiem tra gioi han ky tu moi dong"
     )
     segments = [SubtitleSegment(start=0.0, end=5.0, text=long_text)]
 

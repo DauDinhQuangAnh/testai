@@ -1,5 +1,6 @@
 """Adapter cho WhisperX alignment - can chinh timestamp o muc tu dua tren
 transcript tho tu Faster-Whisper."""
+
 from pathlib import Path
 
 from subtitle_pipeline.domain.models import SubtitleSegment, TranscriptSegment
@@ -15,6 +16,7 @@ class WhisperXAligner:
 
     def __enter__(self) -> "WhisperXAligner":
         import whisperx
+
         self._model, self._metadata = whisperx.load_align_model(
             language_code=self._language, device=self._device
         )
@@ -25,10 +27,9 @@ class WhisperXAligner:
         self._metadata = None
         release_gpu_memory()
 
-    def align(
-        self, audio_path: Path, transcript: list[TranscriptSegment]
-    ) -> list[SubtitleSegment]:
+    def align(self, audio_path: Path, transcript: list[TranscriptSegment]) -> list[SubtitleSegment]:
         import whisperx
+
         raw_segments = [{"start": t.start, "end": t.end, "text": t.text} for t in transcript]
         result = whisperx.align(
             raw_segments, self._model, self._metadata, str(audio_path), self._device

@@ -3,6 +3,7 @@ so dong toi da moi segment, theo quy uoc pho bien trong nganh subtitle (vd.
 huong dan cua Netflix duoc dung lam tham chieu). Ham thuan, khong phu thuoc AI
 libs nen test duoc ma khong can may dev that.
 """
+
 from subtitle_pipeline.domain.models import SubtitleSegment
 
 DEFAULT_MAX_CHARS_PER_LINE = 42

@@ -1,4 +1,5 @@
 """Cau hinh app (thu muc luu file upload/output). Doc tu bien moi truong."""
+
 import os
 from dataclasses import dataclass
 from pathlib import Path

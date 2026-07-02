@@ -1,5 +1,6 @@
 """Test LocalStorage - S3Storage khong test duoc o day vi can AWS credential
 that (chi ra soat bang doc code, xem app/storage.py)."""
+
 from pathlib import Path
 
 from app.storage import LocalStorage, get_storage

@@ -5,6 +5,7 @@ tranh ket noi DB that ngay khi module nay duoc import - quan trong cho test
 (tests/test_job_repository.py dung SQLite in-memory qua make_session_factory,
 khong dung DEFAULT_DATABASE_URL/Postgres that).
 """
+
 import os
 
 from sqlalchemy import create_engine

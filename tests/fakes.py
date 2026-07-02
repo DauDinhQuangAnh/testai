@@ -3,6 +3,7 @@ whisperx/pyannote/deepfilternet cai dat that su. Cac module application/, domain
 export/ khong import AI libs o top-level nen dieu nay hoat dong duoc kha ca trong
 moi truong khong co GPU (xem docs/memory/dev-machine-rtx4050.md).
 """
+
 from pathlib import Path
 
 from subtitle_pipeline.domain.models import SpeakerTurn, SubtitleSegment, TranscriptSegment
@@ -27,11 +28,14 @@ class FakeTranscriber:
     def __exit__(self, exc_type, exc, tb) -> None:
         return None
 
-    def transcribe(self, audio_path: Path) -> list[TranscriptSegment]:
-        return [
-            TranscriptSegment(start=0.0, end=2.0, text="Xin chao"),
-            TranscriptSegment(start=2.0, end=4.0, text="Toi la AI"),
-        ]
+    def transcribe(self, audio_path: Path) -> tuple[list[TranscriptSegment], str]:
+        return (
+            [
+                TranscriptSegment(start=0.0, end=2.0, text="Xin chao"),
+                TranscriptSegment(start=2.0, end=4.0, text="Toi la AI"),
+            ],
+            "vi",
+        )
 
 
 class FakeAligner:

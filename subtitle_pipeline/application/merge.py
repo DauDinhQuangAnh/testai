@@ -1,5 +1,6 @@
 """Gan speaker cho tung subtitle segment dua tren khoang giao (overlap) lon nhat
 voi cac luot noi (speaker turn) tu diarization."""
+
 from subtitle_pipeline.domain.models import SpeakerTurn, SubtitleSegment
 
 

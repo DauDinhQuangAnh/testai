@@ -1,12 +1,13 @@
-"""Dung 1 track audio day du theo timeline goc tu cac doan TTS da synthesize +
-stretch (xem infrastructure/audio_timing.py), roi mux (ghep) track do vao video
-goc thay the audio cu - buoc cuoi cua flow long tieng (application/dub.py).
+"""Dung 1 track audio day du theo timeline goc tu cac doan TTS raw, roi mux
+(ghep) track do vao video goc thay the audio cu - buoc cuoi cua flow long
+tieng (application/dub.py).
 
 `build_dub_track` dung numpy de dat tung clip vao dung vi tri offset trong 1
 mang zero (khoang lang giua cac cau se la im lang, giong video goc khong co
 loi noi lien tuc). numpy da co san qua torch (dependency cua cac adapter
 khac), soundfile can khai bao trong requirements.txt.
 """
+
 import subprocess
 from pathlib import Path
 
@@ -50,11 +51,20 @@ def build_dub_track(
 def mux_audio_into_video(video_path: Path, audio_path: Path, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "ffmpeg", "-y",
-        "-i", str(video_path),
-        "-i", str(audio_path),
-        "-map", "0:v:0", "-map", "1:a:0",
-        "-c:v", "copy", "-c:a", "aac",
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(video_path),
+        "-i",
+        str(audio_path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
         "-shortest",
         str(output_path),
     ]

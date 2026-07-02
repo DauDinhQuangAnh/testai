@@ -1,6 +1,7 @@
 """Ham export subtitle sang SRT/VTT/ASS/TXT/JSON - ham thuan, khong phu thuoc AI
 libs nen test duoc ma khong can may dev that (xem tests/test_export_formats.py).
 """
+
 import json
 
 from subtitle_pipeline.domain.models import SubtitleSegment
@@ -29,6 +30,10 @@ def _format_ass_timestamp(seconds: float) -> str:
 def _label(segment: SubtitleSegment) -> str:
     prefix = f"[{segment.speaker}] " if segment.speaker else ""
     return f"{prefix}{segment.text.strip()}"
+
+
+def _single_line_text(text: str) -> str:
+    return " ".join(text.split())
 
 
 def to_srt(segments: list[SubtitleSegment]) -> str:
@@ -80,7 +85,12 @@ def to_txt(segments: list[SubtitleSegment]) -> str:
 
 def to_json(segments: list[SubtitleSegment]) -> str:
     data = [
-        {"start": seg.start, "end": seg.end, "text": seg.text, "speaker": seg.speaker}
+        {
+            "start": seg.start,
+            "end": seg.end,
+            "text": _single_line_text(seg.text),
+            "speaker": seg.speaker,
+        }
         for seg in segments
     ]
     return json.dumps(data, ensure_ascii=False, indent=2)

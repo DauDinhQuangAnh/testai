@@ -6,6 +6,7 @@ Moi adapter la mot context manager: __enter__ load model (GPU), __exit__ giai
 phong VRAM (xem infrastructure/gpu.py) - phu hop rang buoc VRAM han che cua may
 dev (docs/memory/dev-machine-rtx4050.md).
 """
+
 from pathlib import Path
 from typing import Protocol
 
@@ -21,7 +22,7 @@ class Denoiser(Protocol):
 class Transcriber(Protocol):
     def __enter__(self) -> "Transcriber": ...
     def __exit__(self, exc_type, exc, tb) -> None: ...
-    def transcribe(self, audio_path: Path) -> list[TranscriptSegment]: ...
+    def transcribe(self, audio_path: Path) -> tuple[list[TranscriptSegment], str]: ...
 
 
 class Aligner(Protocol):

@@ -38,34 +38,62 @@ def process_video_job(job_id: str, target_language: str | None = None) -> None:
         config = PipelineConfig.from_env()
         work_dir = Path(job.output_dir) / "_work"
         pipeline = TranscriptionPipeline(config=config, work_dir=work_dir)
-        segments = pipeline.run(Path(job.input_path), on_stage=on_stage)
+        segments, detected_language = pipeline.run(Path(job.input_path), on_stage=on_stage)
 
         out_dir = Path(job.output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(job.input_path).stem
         for fmt, writer in FORMAT_WRITERS.items():
             (out_dir / f"{stem}.{fmt}").write_text(writer(segments), encoding="utf-8")
+        # Luu lai ngon ngu THAT cua audio (Whisper auto-detect, xem
+        # pipeline.py) de translate_job/dub_job (chay Celery task rieng, chi
+        # co file tren dia, khong co bien nay trong bo nho) doc lai dung -
+        # xem _read_source_language() ben duoi.
+        (out_dir / f"{stem}.source_language.txt").write_text(detected_language, encoding="utf-8")
 
         if target_language:
-            on_stage("translate")
-            translated = translate_and_export(
-                segments, config.language, target_language, config.device, out_dir, stem
-            )
+            try:
+                on_stage("translate")
+                translated = translate_and_export(
+                    segments, detected_language, target_language, config.device, out_dir, stem
+                )
 
-            on_stage("dub")
-            dub_and_export(
-                segments=translated,
-                target_language=target_language,
-                source_video=Path(job.input_path),
-                work_dir=work_dir,
-                out_dir=out_dir,
-                stem=stem,
-            )
+                on_stage("dub")
+                dub_and_export(
+                    segments=translated,
+                    target_language=target_language,
+                    source_video=Path(job.input_path),
+                    work_dir=work_dir,
+                    out_dir=out_dir,
+                    stem=stem,
+                )
+            except Exception as exc:
+                # KHONG lam FAILED ca job - transcribe da thanh cong, phu de
+                # goc van dung duoc (vd. ngon ngu nguon hiem NLLB chua ho
+                # tro). Ghi ro ly do vao error_message de Dashboard hien
+                # canh bao, nhung job van DONE.
+                repo.update_status(
+                    job_id,
+                    status=JobStatus.RUNNING,
+                    stage="translate_dub_skipped",
+                    error_message=f"Bo qua dich/long tieng: {exc}",
+                )
 
         repo.update_status(job_id, status=JobStatus.DONE, stage="done")
     except Exception as exc:
         repo.update_status(job_id, status=JobStatus.FAILED, stage=None, error_message=str(exc))
         raise
+
+
+def _read_source_language(out_dir: Path, stem: str, config: PipelineConfig) -> str:
+    """Doc ngon ngu nguon THAT (Whisper auto-detect, ghi boi process_video_job
+    vao `{stem}.source_language.txt`). Fallback ve `config.language` (mac
+    dinh tinh tu .env) cho job cu tao truoc khi co file sidecar nay.
+    """
+    sidecar = out_dir / f"{stem}.source_language.txt"
+    if sidecar.exists():
+        return sidecar.read_text(encoding="utf-8").strip()
+    return config.language
 
 
 @celery_app.task(name="app.jobs.tasks.translate_job")
@@ -85,7 +113,8 @@ def translate_job(job_id: str, target_language: str) -> None:
         segments = [SubtitleSegment(**seg) for seg in json.load(f)]
 
     config = PipelineConfig.from_env()
-    translate_and_export(segments, config.language, target_language, config.device, out_dir, stem)
+    source_language = _read_source_language(out_dir, stem, config)
+    translate_and_export(segments, source_language, target_language, config.device, out_dir, stem)
 
 
 def _load_or_translate_segments(
@@ -107,8 +136,9 @@ def _load_or_translate_segments(
 
     with open(out_dir / f"{stem}.json", encoding="utf-8") as f:
         original_segments = [SubtitleSegment(**seg) for seg in json.load(f)]
+    source_language = _read_source_language(out_dir, stem, config)
     return translate_and_export(
-        original_segments, config.language, target_language, config.device, out_dir, stem
+        original_segments, source_language, target_language, config.device, out_dir, stem
     )
 
 

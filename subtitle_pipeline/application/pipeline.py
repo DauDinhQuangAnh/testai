@@ -14,6 +14,7 @@ subprocess rieng cua Phase 1 - CAN chay thu CLI nay tren may dev that de xac
 nhan khong OOM giua cac buoc, dac biet la buoc transcribe (large-v3) roi den
 align/diarize. Xem HANDOFF.md muc "Van de dang mo".
 """
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +43,7 @@ class TranscriptionPipeline:
     work_dir: Path
     denoiser_factory: Callable[[], Denoiser] | None = None
     transcriber_factory: Callable[[], Transcriber] | None = None
-    aligner_factory: Callable[[], Aligner] | None = None
+    aligner_factory: Callable[[str], Aligner] | None = None
     diarizer_factory: Callable[[], Diarizer] | None = None
 
     def __post_init__(self) -> None:
@@ -52,8 +53,11 @@ class TranscriptionPipeline:
                 self.config.whisper_model, self.config.whisper_compute_type, self.config.device
             )
         )
+        # Nhan ngon ngu luc goi (khong dung config.language tinh) - phai doi
+        # den khi transcribe xong moi biet ngon ngu THAT cua audio (xem
+        # run() ben duoi va HANDOFF.md).
         self.aligner_factory = self.aligner_factory or (
-            lambda: WhisperXAligner(self.config.language, self.config.device)
+            lambda language: WhisperXAligner(language, self.config.device)
         )
         self.diarizer_factory = self.diarizer_factory or (
             lambda: PyannoteDiarizer(self.config.hf_token, self.config.device)
@@ -61,7 +65,7 @@ class TranscriptionPipeline:
 
     def run(
         self, input_path: Path, on_stage: Callable[[str], None] | None = None
-    ) -> list[SubtitleSegment]:
+    ) -> tuple[list[SubtitleSegment], str]:
         def notify(name: str) -> None:
             if on_stage is not None:
                 on_stage(name)
@@ -79,11 +83,20 @@ class TranscriptionPipeline:
 
         notify("transcribe")
         with self.transcriber_factory() as transcriber:
-            transcript = self._stage("transcribe", transcriber.transcribe, denoised_audio)
+            transcript, detected_language = self._stage(
+                "transcribe", transcriber.transcribe, denoised_audio
+            )
 
         notify("align")
-        with self.aligner_factory() as aligner:
-            aligned = self._stage("align", aligner.align, denoised_audio, transcript)
+        try:
+            with self.aligner_factory(detected_language) as aligner:
+                aligned = self._stage("align", aligner.align, denoised_audio, transcript)
+        except Exception:
+            # WhisperX khong co align model san cho moi ngon ngu Whisper co
+            # the detect - thay vi lam hong ca job, dung thang timestamp
+            # segment-level tu Whisper (khong co word-level refine).
+            notify("align_fallback_no_model")
+            aligned = [SubtitleSegment(start=t.start, end=t.end, text=t.text) for t in transcript]
 
         notify("diarize")
         if self.config.hf_token:
@@ -93,7 +106,7 @@ class TranscriptionPipeline:
             speaker_turns = []
 
         notify("merge")
-        return merge_speakers(aligned, speaker_turns)
+        return merge_speakers(aligned, speaker_turns), detected_language
 
     @staticmethod
     def _stage(name: str, func: Callable, *args):

@@ -8,6 +8,7 @@ Chay worker bang: python -m celery -A app.jobs.celery_app worker --loglevel=info
 goc repo nam trong sys.path va cac import app.*/subtitle_pipeline.* hoat dong
 dung khi Celery nap task tu app.jobs.tasks).
 """
+
 import os
 
 from celery import Celery

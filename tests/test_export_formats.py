@@ -1,4 +1,5 @@
 """Test cac ham export - thuan, khong AI deps, chay duoc ngay ca khong co GPU/model."""
+
 import json
 
 from subtitle_pipeline.domain.models import SubtitleSegment
@@ -27,6 +28,21 @@ def test_to_json_roundtrip():
     data = json.loads(to_json(SEGMENTS))
     assert data[0]["speaker"] == "SPEAKER_00"
     assert data[1]["speaker"] is None
+
+
+def test_to_json_removes_line_wrapping_newlines():
+    segments = [
+        SubtitleSegment(
+            start=0.0,
+            end=1.0,
+            text="SQL for\nshort,\n\n  keeps going",
+            speaker=None,
+        )
+    ]
+
+    data = json.loads(to_json(segments))
+
+    assert data[0]["text"] == "SQL for short, keeps going"
 
 
 def test_to_txt_contains_all_lines():

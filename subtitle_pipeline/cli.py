@@ -2,6 +2,7 @@
 
 Chay: python -m subtitle_pipeline.cli input.mp4 --out-dir output --formats srt,vtt
 """
+
 import argparse
 from pathlib import Path
 

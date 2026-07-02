@@ -1,6 +1,7 @@
 """Cau hinh pipeline, doc tu bien moi truong (.env) de de dang doi model size
 giua dev (VRAM han che, xem docs/memory/dev-machine-rtx4050.md) va production.
 """
+
 import os
 from dataclasses import dataclass
 

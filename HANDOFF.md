@@ -841,3 +841,78 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   day co phai van de that voi setup hien tai cua nguoi dung khong (chua bao
   loi) - ghi nhan de kiem tra neu Celery worker/Streamlit bao loi ket noi
   DB/Redis sau khi restart.
+- 2026-07-03 (lan 8): **Thay doi song song ngoai phien lam viec nay** (rat co
+  the tu Codex - xem quy uoc dung chung HANDOFF.md o dau file), phat hien qua
+  `git log`/`git diff` khi dieu tra khieu nai "van con \\n trong .vi.json":
+  - `subtitle_pipeline/export/formats.py`: them `_single_line_text()`, `to_json()`
+    gio loai bo het `\n` (do `optimize_segments` chen vao de ngat dong hien
+    thi) khoi truong `text` - **CHI anh huong file JSON**, cac dinh dang
+    srt/vtt/ass/txt van giu `\n` de hien thi dung chuan phu de. Co test
+    `test_to_json_removes_line_wrapping_newlines`.
+  - `subtitle_pipeline/application/dub.py`: **BO HOAN TOAN buoc co-gian thoi
+    luong (`time_stretch_to_duration`/ffmpeg `atempo`)** - xac nhan voi nguoi
+    dung day la co y (atempo lam giong nghe do). Gio dung thang do dai raw
+    cua clip TTS, dat vao dung `seg.start` tren timeline, KHONG ep khop
+    `seg.end - seg.start` nua. **Danh doi moi (chua co giai phap)**: neu cau
+    dich dai/ngan hon dang ke so voi khung thoi gian goc, cac cau lien tiep
+    co the CHONG LAN (overlap) hoac lech xa dan ve sau trong video dai (tich
+    luy drift, khong co co che bu tru). `infrastructure/audio_timing.py`
+    (`time_stretch_to_duration`, `probe_duration_seconds`,
+    `_clamp_atempo_factors`) van con trong code (khong bi xoa, van co test)
+    nhung KHONG con duoc goi trong luong chinh - giu lai nhu 1 lua chon co
+    the bat lai sau nay neu drift qua nang.
+  - Da xac nhan file JSON cua job that tren may (`storage/b8be05de-.../`)
+    khong con `\n`, va toan bo `pytest` (35 test) van pass voi code hien tai.
+- 2026-07-03 (lan 9): **Sua bug nghiem trong - dich sot/sai vi ngon ngu nguon
+  sai** (nguoi dung bao file `.vi.json` con nguyen nhieu doan tieng Anh chua
+  dich). Root cause tim duoc qua doc code (khong phai NLLB "dich dom"):
+  `PipelineConfig.language` (mac dinh `"vi"` tu `.env`) bi dung SAI muc dich
+  lam ca ngon ngu align (`WhisperXAligner`) LAN ngon ngu nguon cho
+  `NLLBTranslator`, bat ke video that su la tieng gi (vd. video mau la tieng
+  Anh nhung bi bao NLLB "day la tieng Viet" - NLLB luc dich duoc luc khong).
+  Whisper van auto-detect dung (vi `transcriber_faster_whisper.py` khong
+  truyen `language=`) nhung ket qua detect (`info.language`) bi vut bo, khong
+  truyen tiep cho Align/Translate. Da sua:
+  - `domain/ports.py`: `Transcriber.transcribe()` tra ve
+    `tuple[list[TranscriptSegment], str]` (them ngon ngu detect duoc).
+  - `infrastructure/transcriber_faster_whisper.py`: tra ve kem `info.language`.
+  - `application/pipeline.py`: `aligner_factory` doi thanh
+    `Callable[[str], Aligner]` (dung sau khi biet ngon ngu that, khong dung
+    sang lap luc `__post_init__` nhu truoc). Them try/except quanh buoc align
+    - neu WhisperX khong co align model cho ngon ngu detect duoc (hoan toan
+    co the xay ra voi auto-detect da ngon ngu) thi fallback dung thang
+    timestamp segment-level tu Whisper thay vi lam crash ca job.
+    `TranscriptionPipeline.run()` gio tra ve
+    `tuple[list[SubtitleSegment], str]`.
+  - `infrastructure/translator_nllb.py`: mo rong `NLLB_LANGUAGE_CODES` them
+    12 ngon ngu NGUON pho bien (de/ru/it/pt/th/hi/id/nl/tr/pl/ar/uk).
+    `SUPPORTED_LANGUAGES` (dropdown ngon ngu DICH o Upload/Editor) tach rieng
+    thanh list co dinh `["vi","en","zh","ja","ko","fr","es"]`, khong con
+    derive tu dict nguon (gio lon hon nhieu) nua - phai khop dung
+    `EDGE_TTS_VOICES` trong `tts_edge.py`.
+  - `app/jobs/tasks.py`: `process_video_job` dung `detected_language` that
+    (khong phai `config.language`) cho `translate_and_export`; ghi ra file
+    sidecar `{stem}.source_language.txt` de `translate_job`/`dub_job` (chay
+    Celery task rieng, khong co bien nay san trong bo nho) doc lai dung qua
+    helper `_read_source_language()` moi (fallback `config.language` cho job
+    cu chua co file sidecar). Khoi translate+dub boc trong try/except rieng:
+    neu NLLB rai `ValueError` (ngon ngu nguon hiem, chua co trong dict) thi
+    KHONG lam FAILED ca job (transcribe da xong, phu de goc van dung duoc) -
+    ghi `error_message` (Dashboard se hien canh bao) nhung `status` van
+    `DONE`.
+  - **Nguyen nhan phu gay "dich khong tu nhien"**: WhisperX chia segment o
+    muc manh cau (vd. giua cau bi cat rieng), dich tung manh rieng le thieu
+    ngu canh. Them file moi `application/sentence_merge.py`
+    (`merge_into_sentences()` - ham thuan, gop cac segment lien tiep thanh 1
+    cau hoan chinh dua vao dau cau ket thuc `. ! ? …`) va goi no trong
+    `application/translate.py` TRUOC khi dua vao NLLB. **Chi ap dung cho
+    nhanh dich** (khong dung toi phu de goc chua dich, tranh doi hanh vi
+    phan dang chay dung). Loi ich phu: TTS cung it bi ngat quang hon vi moi
+    cau hoan chinh chi tao 1 clip TTS thay vi nhieu clip roi cho tung manh.
+  - Test moi: `tests/test_sentence_merge.py`. Cap nhat `tests/fakes.py`
+    (`FakeTranscriber.transcribe()` tra tuple), `tests/test_pipeline.py`
+    (aligner factory nhan `language`, unpack tuple tra ve). **40/40 test
+    pass, `ruff check`/`ruff format` sach** (chay that tren may dev).
+  - **Chua kiem chung tren job that** (can nguoi dung xoa job loi cu, upload
+    lai video mau, xac nhan `.vi.json` moi khong con doan tieng Anh nao va
+    cau dich muot hon).

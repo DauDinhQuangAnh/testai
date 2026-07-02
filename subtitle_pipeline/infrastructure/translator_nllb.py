@@ -25,12 +25,30 @@ NLLB_LANGUAGE_CODES = {
     "ko": "kor_Hang",
     "fr": "fra_Latn",
     "es": "spa_Latn",
+    # Them cac ngon ngu NGUON pho bien ma Faster-Whisper hay auto-detect
+    # (xem transcriber_faster_whisper.py + pipeline.py) - video upload co the
+    # o bat ky ngon ngu nao trong so nay, KHONG chi 7 ngon ngu o tren (von
+    # chi la danh sach ngon ngu DICH/long tieng, xem SUPPORTED_LANGUAGES).
+    "de": "deu_Latn",
+    "ru": "rus_Cyrl",
+    "it": "ita_Latn",
+    "pt": "por_Latn",
+    "th": "tha_Thai",
+    "hi": "hin_Deva",
+    "id": "ind_Latn",
+    "nl": "nld_Latn",
+    "tr": "tur_Latn",
+    "pl": "pol_Latn",
+    "ar": "arb_Arab",
+    "uk": "ukr_Cyrl",
 }
 
-# Danh sach ngon ngu dich/long tieng dung chung cho ca Upload va Editor page -
-# dat o day (thay vi hardcode rieng tung noi) vi day la nguon gioi han thuc su
-# (phai ho tro ca NLLB lan edge-tts, xem infrastructure/tts_edge.py).
-SUPPORTED_LANGUAGES = list(NLLB_LANGUAGE_CODES.keys())
+# Danh sach ngon ngu DICH/long tieng dung chung cho ca Upload va Editor page -
+# CO DINH (khong con derive tu NLLB_LANGUAGE_CODES.keys() nhu truoc, vi dict
+# do gio la danh sach ngon ngu NGUON rong hon nhieu). Phai khop dung voi
+# EDGE_TTS_VOICES trong infrastructure/tts_edge.py - day la gioi han thuc su
+# (edge-tts chi co giong doc cho tung ay ngon ngu).
+SUPPORTED_LANGUAGES = ["vi", "en", "zh", "ja", "ko", "fr", "es"]
 
 
 class NLLBTranslator:

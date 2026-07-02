@@ -3,9 +3,11 @@ translate_job (app/jobs/tasks.py). Tach rieng khoi TranscriptionPipeline vi day
 la hanh dong tuy chon nguoi dung kich hoat sau khi job chinh da xong, khong
 phai buoc bat buoc trong pipeline chinh.
 """
+
 from pathlib import Path
 
 from subtitle_pipeline.application.optimize import optimize_segments
+from subtitle_pipeline.application.sentence_merge import merge_into_sentences
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.export.formats import FORMAT_WRITERS
 from subtitle_pipeline.infrastructure.translator_nllb import NLLBTranslator
@@ -19,8 +21,13 @@ def translate_and_export(
     out_dir: Path,
     stem: str,
 ) -> list[SubtitleSegment]:
+    # Gop manh cau (WhisperX hay chia o muc tu/cum tu) thanh cau hoan chinh
+    # TRUOC khi dich - NLLB co du ngu canh nen dich tu nhien hon han so voi
+    # dich tung manh roi rac (xem HANDOFF.md). CHI ap dung cho nhanh dich,
+    # khong dung toi phu de goc chua dich.
+    sentences = merge_into_sentences(segments)
     with NLLBTranslator(source_language, target_language, device) as translator:
-        translated = translator.translate(segments)
+        translated = translator.translate(sentences)
     optimized = optimize_segments(translated)
 
     out_dir.mkdir(parents=True, exist_ok=True)

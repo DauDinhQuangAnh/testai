@@ -4,15 +4,20 @@ application/dub.py de can chinh do dai cau TTS sinh ra khop voi khung thoi
 gian [start, end] cua segment phu de goc. Khong can model AI, chi goi
 subprocess ffmpeg/ffprobe (cung style voi infrastructure/audio.py).
 """
+
 import subprocess
 from pathlib import Path
 
 
 def probe_duration_seconds(path: Path) -> float:
     cmd = [
-        "ffprobe", "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
         str(path),
     ]
     result = subprocess.run(cmd, check=True, capture_output=True, text=True)

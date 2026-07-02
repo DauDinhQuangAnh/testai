@@ -2,6 +2,7 @@
 chuyen qua cac buoc cua pipeline. Vi khong import torch/whisper/..., cac module
 dung kieu nay (application/, export/) test duoc ma khong can cai dat AI libs.
 """
+
 from dataclasses import dataclass
 
 

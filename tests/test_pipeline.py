@@ -24,7 +24,7 @@ def _make_pipeline(tmp_path: Path, transcriber_factory=None) -> TranscriptionPip
         work_dir=tmp_path / "work",
         denoiser_factory=lambda: FakeDenoiser(),
         transcriber_factory=transcriber_factory or (lambda: FakeTranscriber()),
-        aligner_factory=lambda: FakeAligner(),
+        aligner_factory=lambda language: FakeAligner(),
         diarizer_factory=lambda: FakeDiarizer(),
     )
 
@@ -33,10 +33,11 @@ def test_run_merges_speaker_into_segments(tmp_path, monkeypatch):
     monkeypatch.setattr("subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio)
     pipeline = _make_pipeline(tmp_path)
 
-    result = pipeline.run(tmp_path / "input.mp4")
+    result, detected_language = pipeline.run(tmp_path / "input.mp4")
 
     assert [seg.speaker for seg in result] == ["SPEAKER_00", "SPEAKER_01"]
     assert result[0].text == "Xin chao"
+    assert detected_language == "vi"
 
 
 def test_run_without_hf_token_skips_diarization(tmp_path, monkeypatch):
@@ -46,10 +47,10 @@ def test_run_without_hf_token_skips_diarization(tmp_path, monkeypatch):
         work_dir=tmp_path / "work",
         denoiser_factory=lambda: FakeDenoiser(),
         transcriber_factory=lambda: FakeTranscriber(),
-        aligner_factory=lambda: FakeAligner(),
+        aligner_factory=lambda language: FakeAligner(),
     )
 
-    result = pipeline.run(tmp_path / "input.mp4")
+    result, _detected_language = pipeline.run(tmp_path / "input.mp4")
 
     assert [seg.speaker for seg in result] == [None, None]
 
