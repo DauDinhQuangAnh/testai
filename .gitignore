@@ -10,4 +10,5 @@ phase1_feasibility/results/*
 
 storage/
 *.db
+*.log
 output/

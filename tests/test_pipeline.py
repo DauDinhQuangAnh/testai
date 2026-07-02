@@ -37,6 +37,23 @@ def test_run_merges_speaker_into_segments(tmp_path, monkeypatch):
     assert result[0].text == "Xin chao"
 
 
+def test_run_without_hf_token_skips_diarization(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio
+    )
+    pipeline = TranscriptionPipeline(
+        config=PipelineConfig(hf_token=None),
+        work_dir=tmp_path / "work",
+        denoiser_factory=lambda: FakeDenoiser(),
+        transcriber_factory=lambda: FakeTranscriber(),
+        aligner_factory=lambda: FakeAligner(),
+    )
+
+    result = pipeline.run(tmp_path / "input.mp4")
+
+    assert [seg.speaker for seg in result] == [None, None]
+
+
 def test_stage_failure_wrapped_in_pipeline_stage_error(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "subtitle_pipeline.application.pipeline.extract_audio", _fake_extract_audio

@@ -86,8 +86,11 @@ class TranscriptionPipeline:
             aligned = self._stage("align", aligner.align, denoised_audio, transcript)
 
         notify("diarize")
-        with self.diarizer_factory() as diarizer:
-            speaker_turns = self._stage("diarize", diarizer.diarize, denoised_audio)
+        if self.config.hf_token:
+            with self.diarizer_factory() as diarizer:
+                speaker_turns = self._stage("diarize", diarizer.diarize, denoised_audio)
+        else:
+            speaker_turns = []
 
         notify("merge")
         return merge_speakers(aligned, speaker_turns)
