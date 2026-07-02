@@ -26,6 +26,11 @@ NLLB_LANGUAGE_CODES = {
     "es": "spa_Latn",
 }
 
+# Danh sach ngon ngu dich/long tieng dung chung cho ca Upload va Editor page -
+# dat o day (thay vi hardcode rieng tung noi) vi day la nguon gioi han thuc su
+# (phai ho tro ca NLLB lan MMS-TTS, xem infrastructure/tts_mms.py).
+SUPPORTED_LANGUAGES = list(NLLB_LANGUAGE_CODES.keys())
+
 
 class NLLBTranslator:
     def __init__(

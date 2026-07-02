@@ -117,8 +117,11 @@ subtitle -> dich da ngon ngu -> export SRT/VTT/ASS/TXT/JSON.
 3. Streamlit App - Upload + Job Dashboard (code xong, **CHUA chay tren may that**)
 4. Subtitle Editor (`st.data_editor` - xem "Quyet dinh moi") (code xong, **CHUA chay**)
 5. Da ngon ngu + toi uu cau subtitle (code xong, **CHUA chay, rui ro cao nhat**)
+5b. Long tieng (Dubbing/TTS) - MMS-TTS + ghep audio vao video, xem muc 6i
+    (code xong 2026-07-03, **CHUA chay, rui ro cao nhat cua toan bo du an**)
 6. Auth/User Management trong Streamlit (code xong, **CHUA chay**)
-7. Goi cuoc + gioi han usage (KHONG con Stripe - xem "Quyet dinh moi") (code xong, **CHUA chay**)
+7. Goi cuoc + gioi han usage - **DA BO gioi han/chan upload (2026-07-03),
+   du an chuyen thanh ca nhan/phi thuong mai**, xem "Quyet dinh moi"
 8. Bao mat nang cao + Ha tang Production - MOT PHAN: storage S3 abstraction + CI
    da co code, **CHUA lam**: secrets manager that, deploy multi-instance
 9. Monitoring/Scale nang cao - **CO CHU DICH CHUA LAM** (Prometheus/Grafana,
@@ -423,6 +426,116 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
 **Viec can lam:** Xem CI chay pass tren GitHub sau khi push. Test
 `LocalStorage`/`get_storage()` qua `pytest`.
 
+## 6i. Phase 5b - Long tieng (Dubbing / Text-to-Speech)
+
+**Muc tieu:** Tu file ket qua da dich (Phase 5), sinh giong doc bang TTS,
+co-gian khop khung thoi gian tung cau, ghep thanh 1 track audio day du va mux
+(ghep) vao video goc -> ra 1 file video hoan chinh da long tieng, khong chi
+con la phu de text.
+
+**Trang thai:** Code xong (2026-07-03), **CHUA chay thu - RUI RO CAO NHAT
+trong toan bo du an** (adapter TTS hoan toan moi, chua tung duoc goi thu).
+
+**Boi canh quyet dinh (xem muc 7 de biet chi tiet):** nguoi dung chon ngon ngu
+dich chinh la **tieng Viet**, **khong can voice cloning** o ban v1 (chap nhan
+giong doc chuan), va du an la **ca nhan/phi thuong mai** nen khong bi rang
+buoc license commercial.
+
+**Vi sao chon MMS-TTS (`facebook/mms-tts-vie`) thay vi Coqui XTTS-v2:**
+XTTS-v2 (model voice-cloning tot nhat hien co) KHONG co tieng Viet trong 17
+ngon ngu ho tro. MMS-TTS (Meta) co checkpoint rieng cho ~1100 ngon ngu bao gom
+tieng Viet, chay qua `transformers.VitsModel`/`VitsTokenizer` - dung chung thu
+vien `transformers` da co san tu Phase 5 (khong them framework ML moi), VRAM
+rat nhe (<1GB, phu hop ngan sach 6GB VRAM dang chia se voi Whisper/pyannote/
+NLLB). Doi lai KHONG ho tro voice cloning (dung yeu cau v1) va license
+CC-BY-NC (chap nhan duoc vi du an khong con thuong mai).
+
+**Kien truc (noi tiep dung Clean Architecture cua `subtitle_pipeline/`):**
+- `subtitle_pipeline/domain/ports.py` - them Protocol `VoiceSynthesizer`.
+- `subtitle_pipeline/infrastructure/tts_mms.py` - `MMSTTSSynthesizer`
+  (context manager cung mau cac adapter khac). **CANH BAO RUI RO cung muc do
+  voi `translator_nllb.py`: day la adapter DUY NHAT chua tung chay thu, cach
+  goi `VitsModel`/`VitsTokenizer` chi dua theo tai lieu HuggingFace.**
+- `subtitle_pipeline/infrastructure/audio_timing.py` - `probe_duration_seconds`
+  (ffprobe) + `time_stretch_to_duration` (ffmpeg `atempo`, tu chia nho factor
+  ngoai khoang [0.5, 2.0] thanh chuoi filter - ham thuan `_clamp_atempo_factors`
+  co test rieng).
+- `subtitle_pipeline/infrastructure/audio_mux.py` - `build_dub_track` (dung
+  track audio day du bang numpy, dat tung clip TTS vao dung offset theo
+  timeline goc, khoang trong la im lang) + `mux_audio_into_video` (ffmpeg,
+  giu nguyen video stream `-c:v copy`, chi thay audio stream).
+- `subtitle_pipeline/application/dub.py` - `dub_and_export()` dieu phoi:
+  synthesize tung segment -> stretch khop `end-start` -> dung track theo
+  tong thoi luong (doc tu `_work/audio_denoised.wav` con luu tu Phase 2, hoac
+  ffprobe video goc neu file khong con) -> mux vao video -> tra ve duong dan
+  `<stem>.<lang>.dubbed.mp4`.
+- `app/jobs/tasks.py` - Celery task `dub_job(job_id, target_language)` va
+  helper `_load_or_translate_segments()` (dung chung logic voi `translate_job`
+  nhung tu dong dich truoc neu chua co file `.{lang}.json`, dung de `dub_job`
+  khong bat buoc nguoi dung phai bam "Dich" rieng truoc).
+- `app/pages/3_Editor.py` - **theo yeu cau nguoi dung, gop lam 1 nut duy nhat**
+  "Dich + Long tieng" (khong bat bam dich xong roi moi bam long tieng rieng)
+  o khoi moi ben duoi khoi "Dich sang ngon ngu khac" (khoi cu van giu nguyen,
+  van huu ich neu chi can phu de dich, khong can audio). Sau khi co file
+  `.dubbed.mp4`, trang hien `st.video()` + nut tai xuong.
+
+**Cap nhat 2026-07-03 (sau khi nguoi dung dung thu tren may dev that va yeu
+cau don gian hoa flow) - gop toan bo vao 1 buoc upload duy nhat:**
+- `app/pages/1_Upload.py` - them o chon "Ngon ngu long tieng" (dung chung
+  `SUPPORTED_LANGUAGES`, xem duoi) ngay tai trang Upload, mac dinh `vi`.
+  `process_video_job.delay(job.id, target_language)` truyen thang ngon ngu
+  vao job chinh - nguoi dung KHONG can vao Editor bam gi nua, chi upload 1
+  lan la ra video hoan chinh.
+- `app/jobs/tasks.py` - `process_video_job(job_id, target_language=None)`:
+  neu co `target_language`, sau khi transcribe xong se **goi tiep luon trong
+  cung 1 task** `translate_and_export()` (stage "translate") roi
+  `dub_and_export()` (stage "dub"), cap nhat `Job.stage` xuyen suot ca 2 giai
+  doan de Dashboard hien tien do dung. Khong dung Celery chain/task rieng -
+  chi la goi ham Python tuan tu trong cung 1 task, don gian va de debug hon.
+  Trang Editor (`dub_job`/`translate_job`) van giu nguyen, dung de **lam lai
+  hoac doi ngon ngu khac sau nay** (khong phai buoc bat buoc trong flow
+  chinh nua).
+- `subtitle_pipeline/infrastructure/translator_nllb.py` - them hang so
+  `SUPPORTED_LANGUAGES = list(NLLB_LANGUAGE_CODES.keys())`, dung chung boi ca
+  `1_Upload.py` va `3_Editor.py` (truoc do moi noi tu hardcode 1 list rieng,
+  de lech nhau).
+- `app/jobs/repository.py` - them `JobRepository.delete(job_id)`. Co test
+  (`tests/test_job_repository.py`).
+- `app/pages/2_Dashboard.py` - them checkbox "Xac nhan xoa" + nut "Xoa job"
+  cho tung job: xoa ca record DB (`repo.delete`) LAN toan bo file tren dia
+  (`shutil.rmtree(Path(job.output_dir).parent)` - xoa ca video goc va thu
+  muc output, vi ca hai deu nam chung trong `storage/<job_id>/`). Xoa vinh
+  vien, khong co thung rac/soft-delete (du an ca nhan, uu tien don gian va
+  giai phong dung luong dia).
+- `requirements.txt` - them `soundfile>=0.12.1`.
+- `tests/test_audio_timing.py`, `tests/test_audio_mux.py` - test logic thuan
+  (`_clamp_atempo_factors`, dat clip dung offset trong track) bang du lieu
+  gia lap qua `soundfile`/`numpy`, KHONG can model TTS/ffmpeg that.
+
+**Han che da biet (chua giai quyet trong ban nay):**
+- Khong co voice cloning - toan bo cau trong 1 ngon ngu dung chung 1 giong doc
+  trung tinh (dung theo yeu cau nguoi dung cho v1).
+- Dong bo audio-video chi o muc "khop khung thoi gian [start, end]" bang
+  time-stretch (`atempo`), KHONG phai lip-sync that (khong co model dong bo
+  mieng).
+- Neu cau TTS qua dai/qua ngan so voi khung thoi gian goc, `atempo` co the lam
+  giong nghe khong tu nhien (nhanh/cham bat thuong) - chua co gioi han canh
+  bao hay fallback nao khac ngoai viec chia nho factor cho hop le voi ffmpeg.
+
+**Viec can lam tren may dev that:**
+1. `pip install -r requirements.txt` (cai `soundfile` moi them; `transformers`
+   da co san tu Phase 5).
+2. Dam bao da co 1 job DONE (Phase 3) + Celery worker + Streamlit dang chay.
+3. Vao Editor, chon job, o khoi "Long tieng" chon ngon ngu (vd. `vi`) va bam
+   "Dich + Long tieng" (chi 1 nut, tu dong dich neu chua dich).
+4. Theo doi log Celery worker - rat co the loi o lan chay dau vi
+   `tts_mms.py`/`audio_mux.py` chua test bao gio, sua theo log cu the.
+5. Khi xong, video `<file>.vi.dubbed.mp4` xuat hien trong Editor - phat thu de
+   kiem tra audio khop timeline, mo bang trinh phat video khac de xac nhan
+   khong loi mux.
+6. Bao lai loi/log cu the (dac biet neu OOM khi TTS chay, hoac loi filter
+   `atempo` chain) de sua tiep.
+
 ## 7. Quyet dinh moi / thay doi so voi ban dau
 
 - **2026-07-01 - Bo qua thu tu roadmap goc:** Nguoi dung chon viet Phase 2 truoc
@@ -463,6 +576,35 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
   giu dung quyet dinh goc trong roadmap (chi lam khi co traffic that). Xem chi
   tiet tung phase o muc 6d-6h. Day la lan mo rong pham vi lon nhat tu truoc
   den nay trong 1 lan - CHUA co bat ky phan nao trong Phase 4-8 duoc chay thu.
+
+- **2026-07-03 - Xay dung flow long tieng (dubbing) day du, ket thuc bang 1
+  file video co giong doc thay cho phu de text don thuan (Phase 5b, xem muc
+  6i).** Truoc do flow "dich" chi dung o xuat phu de dich (srt/vtt/ass/txt/
+  json) - nguoi dung phat hien qua thu muc job mau
+  (`storage/498a6250-.../output/`) chi co phu de, khong co audio/video moi,
+  va yeu cau hoan thien den ket qua cuoi cung. Chot qua trao doi voi nguoi
+  dung:
+  - Ngon ngu dich/long tieng chinh: **tieng Viet**. Loai Coqui XTTS-v2 (voice
+    cloning tot nhat) vi khong ho tro tieng Viet, chon MMS-TTS
+    (`facebook/mms-tts-vie` qua `transformers`) vi co checkpoint tieng Viet,
+    dung chung thu vien da co, VRAM nhe.
+  - **Khong lam voice cloning o v1** - dung giong doc chuan/trung tinh cho
+    moi cau (khong clone giong nguoi noi goc). Co the nang cap sau.
+  - **UI gop lam 1 nut duy nhat** "Dich + Long tieng" o Editor (khong bat
+    nguoi dung bam "Dich" xong roi moi bam "Long tieng" rieng) - Celery task
+    `dub_job` tu dong dich truoc neu chua co file dich.
+  - Dong bo audio-video moi o muc "khop khung thoi gian" (ffmpeg `atempo`
+    time-stretch tung cau khop `[start, end]` cua segment goc), KHONG phai
+    lip-sync that.
+- **2026-07-03 - Du an chuyen huong thanh ca nhan/phi thuong mai, BO gioi han
+  usage/goi cuoc (Phase 7):** nguoi dung xac nhan "khong thuong mai nua chi
+  la project ca nhan... bo luon phan limit di". Da xoa khoi kiem tra
+  `subscription`/`plan_info`/`minutes_used` + `st.stop()` chan upload trong
+  `app/pages/1_Upload.py`. **Khong xoa** `app/billing/` hay
+  `app/pages/4_Billing.py` (van giu de xem usage tham khao, chi bo phan chan
+  cung). Ly do quyet dinh nay lien quan truc tiep: vi khong con rang buoc
+  thuong mai nen viec chon model TTS non-commercial license (MMS-TTS,
+  CC-BY-NC) o tren cung khong con la van de.
 
 ## 8. Van de dang mo / can quyet dinh
 
@@ -523,14 +665,31 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
     neu co du lieu Job cu trong DB that (khong co tren may nao vi chua chay
     lan nao) se can migration; hien tai khong van de vi DB luon duoc tao moi
     tu `Base.metadata.create_all()`.
+- **Chua xac minh Phase 5b tren may that (RUI RO CAO NHAT cua toan bo du
+  an, xem muc 6i) - TOAN BO chua chay lan nao:**
+  - Cach goi `transformers.VitsModel`/`VitsTokenizer` (`tts_mms.py`) hoan
+    toan chua verify - co the sai ten tham so/API giua cac phien ban
+    `transformers`, tuong tu rui ro da biet o `translator_nllb.py`.
+  - `time_stretch_to_duration` dung ffmpeg `atempo` chua test thuc te - can
+    xac nhan chuoi filter chia nho (khi factor ngoai [0.5, 2.0]) chay dung,
+    va chat luong am thanh sau khi stretch nhieu lan co chap nhan duoc khong.
+  - `build_dub_track`/`mux_audio_into_video` chua test voi audio/video that -
+    rui ro lech timing tich luy qua nhieu segment, hoac loi map audio/video
+    stream khi mux (`-map 0:v:0 -map 1:a:0`).
+  - Chua do anh huong VRAM khi MMS-TTS chay - dac biet neu Celery worker van
+    con giu model dich (NLLB) resident luc TTS load (ca hai deu qua
+    `transformers`, can xac nhan `release_gpu_memory()` giai phong dung giua
+    2 buoc).
 - **Uu tien thu tu kiem thu tren may dev that de cach ly loi hieu qua:**
   Phase 1 (`check_env.py` + `run_all.py`) -> Phase 2 CLI -> `pytest` toan bo
   (bao gom cac test moi: `test_optimize.py`, `test_security.py`,
   `test_user_repository.py`, `test_subscription_repository.py`,
-  `test_usage.py`, `test_storage.py`) -> Phase 3 web UI (Upload/Dashboard) ->
-  Phase 6 (dang ky/dang nhap - BAT BUOC truoc vi Upload/Dashboard/Editor deu
-  can dang nhap) -> Phase 4 (Editor) -> Phase 5 (dich, rui ro cao nhat, test
-  sau cung) -> Phase 7 (goi cuoc/gioi han usage) -> Phase 8.
+  `test_usage.py`, `test_storage.py`, `test_audio_timing.py`,
+  `test_audio_mux.py`) -> Phase 3 web UI (Upload/Dashboard, luu y Upload gio
+  chay het ca transcribe+dich+long tieng trong 1 job - xem muc 6i) -> Phase 6
+  (dang ky/dang nhap - BAT BUOC truoc vi Upload/Dashboard/Editor deu can dang
+  nhap) -> Phase 4 (Editor) -> Phase 5 (dich) -> Phase 5b (long tieng, rui ro
+  cao nhat, test sau cung) -> Phase 8.
 
 ## 9. Nhat ky cap nhat
 
@@ -570,3 +729,23 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
   thu cong qua `SubscriptionRepository.upsert`. `Subscription` model khong con
   cac truong Stripe; `plans.py` doi tu ham `get_plan_catalog()` sang hang so
   `PLAN_CATALOG` (khong con phu thuoc env).
+- 2026-07-03: Viet xong code Phase 5b - Long tieng (Dubbing/TTS), hoan thien
+  flow den ket qua cuoi cung la 1 file video da long tieng (xem muc 6i):
+  `subtitle_pipeline/infrastructure/tts_mms.py` (MMS-TTS qua transformers),
+  `audio_timing.py` (time-stretch ffmpeg atempo), `audio_mux.py` (dung track
+  + mux vao video), `application/dub.py` (dieu phoi), Celery task `dub_job`
+  + helper `_load_or_translate_segments` (`app/jobs/tasks.py`), UI gop 1 nut
+  "Dich + Long tieng" trong `app/pages/3_Editor.py`, them `soundfile` vao
+  `requirements.txt`, test `test_audio_timing.py`/`test_audio_mux.py`. Cung
+  luc, BO gioi han usage/goi cuoc trong `app/pages/1_Upload.py` theo yeu cau
+  nguoi dung (du an chuyen thanh ca nhan/phi thuong mai - xem muc 7). TOAN BO
+  Phase 5b CHUA CHAY THU, la phan rui ro cao nhat cua du an (xem muc 8).
+- 2026-07-03: Xac nhan dang chay tren MAY DEV THAT (RTX 4050 6GB VRAM) - venv
+  + torch 2.8.0+cu128 (CUDA available=True) + HF_TOKEN + ffmpeg (qua winget)
+  da co san tu truoc. Theo yeu cau nguoi dung don gian hoa flow: gop
+  transcribe+dich+long tieng thanh 1 job DUY NHAT kich hoat tu trang Upload
+  (chon ngon ngu ngay luc upload, khong can vao Editor bam them buoc nao -
+  xem muc 6i "Cap nhat 2026-07-03"). Them tinh nang xoa job (ca DB lan file
+  tren dia) o Dashboard (`JobRepository.delete`, checkbox xac nhan + nut "Xoa
+  job"). Gop `SUPPORTED_LANGUAGES` ve 1 noi dung
+  (`translator_nllb.py`) thay vi hardcode rieng o Upload/Editor.

@@ -38,6 +38,18 @@ function Stop-AppPythonProcesses {
     }
 }
 
+function Invoke-NativeQuiet($Command) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+
+    try {
+        & $Command 1>$null 2>$null
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
 Write-Step "Loading .env"
 Load-EnvFile (Join-Path $Root ".env")
 $env:PYTHONIOENCODING = "utf-8"
@@ -57,11 +69,17 @@ if ((Test-Path $python) -and $env:REDIS_URL) {
 }
 
 Write-Step "Stopping Docker containers"
-docker compose stop *> $null
+$composeExitCode = Invoke-NativeQuiet { docker compose stop }
+if ($composeExitCode -ne 0) {
+    Write-Step "docker compose stop exited with code $composeExitCode"
+}
 
 docker ps --filter "name=^/testai-postgres-15432$" --format "{{.Names}}" | ForEach-Object {
     if ($_) {
-        docker stop testai-postgres-15432 *> $null
+        $postgresExitCode = Invoke-NativeQuiet { docker stop testai-postgres-15432 }
+        if ($postgresExitCode -ne 0) {
+            Write-Step "docker stop testai-postgres-15432 exited with code $postgresExitCode"
+        }
     }
 }
 

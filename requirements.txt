@@ -25,6 +25,10 @@ pandas>=2.2.0
 transformers>=4.40.0
 sentencepiece>=0.2.0
 
+# Phase 5b - Long tieng (MMS-TTS qua transformers - xem canh bao rui ro trong
+# subtitle_pipeline/infrastructure/tts_mms.py)
+soundfile>=0.12.1
+
 # Phase 6 - Auth
 bcrypt>=4.1.0
 pyjwt>=2.9.0

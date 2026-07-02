@@ -63,6 +63,23 @@ def test_list_all_returns_created_jobs():
     assert {j.id for j in jobs} == {first.id, second.id}
 
 
+def test_delete_removes_job():
+    repo = _make_repo()
+    job = repo.create(
+        filename="video.mp4", input_path=Path("in.mp4"), output_dir=Path("out"), user_id="user-1"
+    )
+
+    repo.delete(job.id)
+
+    assert repo.get(job.id) is None
+
+
+def test_delete_unknown_job_is_a_noop():
+    repo = _make_repo()
+
+    repo.delete("does-not-exist")  # khong raise
+
+
 def test_list_by_user_only_returns_that_users_jobs():
     repo = _make_repo()
     own_job = repo.create(

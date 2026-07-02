@@ -1,4 +1,8 @@
-"""Trang dashboard: liet ke job, trang thai/tien do, tai file ket qua khi xong."""
+"""Trang dashboard: liet ke job, trang thai/tien do, tai file ket qua khi xong,
+va xoa job (ca record DB lan file tren dia - xem nut "Xoa job" ben duoi, du an
+ca nhan nen xoa thang khong can thung rac/soft-delete).
+"""
+import shutil
 import sys
 from pathlib import Path
 
@@ -45,3 +49,14 @@ for job in jobs:
                     file_name=file.name,
                     key=f"{job.id}-{file.name}",
                 )
+
+        st.divider()
+        confirm_delete = st.checkbox(
+            "Xac nhan xoa (xoa vinh vien ca video goc lan ket qua tren dia)",
+            key=f"confirm-delete-{job.id}",
+        )
+        if st.button("Xoa job", key=f"delete-{job.id}", disabled=not confirm_delete):
+            job_dir = Path(job.output_dir).parent
+            shutil.rmtree(job_dir, ignore_errors=True)
+            repo.delete(job.id)
+            st.rerun()

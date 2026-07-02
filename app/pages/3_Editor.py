@@ -25,11 +25,10 @@ for _parent in Path(__file__).resolve().parents:
 from app.auth.streamlit_helpers import require_login
 from app.db.models import JobStatus
 from app.jobs.repository import JobRepository
-from app.jobs.tasks import translate_job
+from app.jobs.tasks import dub_job, translate_job
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.export.formats import FORMAT_WRITERS
-
-SUPPORTED_TRANSLATION_LANGUAGES = ["en", "vi", "zh", "ja", "ko", "fr", "es"]
+from subtitle_pipeline.infrastructure.translator_nllb import SUPPORTED_LANGUAGES
 
 st.set_page_config(page_title="Editor - AI Subtitle Studio")
 user = require_login()
@@ -99,10 +98,39 @@ if st.button("Luu va xuat lai file"):
 
 st.divider()
 st.subheader("Dich sang ngon ngu khac")
-target_language = st.selectbox("Ngon ngu dich", SUPPORTED_TRANSLATION_LANGUAGES)
+target_language = st.selectbox("Ngon ngu dich", SUPPORTED_LANGUAGES)
 if st.button("Dich va xuat file moi"):
     translate_job.delay(job.id, target_language)
     st.info(
         f"Da gui yeu cau dich sang '{target_language}'. File ket qua se co hau to "
         f"ngon ngu (vd. {input_path.stem}.{target_language}.srt) sau it phut."
+    )
+
+st.divider()
+st.subheader("Long tieng (lam lai hoac doi sang ngon ngu khac)")
+st.caption(
+    "Upload da tu chay long tieng theo ngon ngu chon luc tao job. Dung khoi "
+    "nay neu muon lam lai hoac long tieng sang ngon ngu khac. Chi can chon "
+    "ngon ngu va bam 1 nut - he thong tu dich (neu chua dich) roi long tieng. "
+    "Giong doc la giong chuan (chua ho tro clone giong goc trong ban nay - "
+    "xem HANDOFF.md Phase 5b)."
+)
+dub_target_language = st.selectbox(
+    "Ngon ngu long tieng", SUPPORTED_LANGUAGES, key="dub-language"
+)
+if st.button("Dich + Long tieng"):
+    dub_job.delay(job.id, dub_target_language)
+    st.info(
+        "Da gui yeu cau dich + long tieng. Qua trinh chay ngam (dich roi long "
+        f"tieng) co the mat vai phut. File ket qua: "
+        f"{input_path.stem}.{dub_target_language}.dubbed.mp4"
+    )
+
+dubbed_video_path = output_dir / f"{input_path.stem}.{dub_target_language}.dubbed.mp4"
+if dubbed_video_path.exists():
+    st.video(str(dubbed_video_path))
+    st.download_button(
+        "Tai video da long tieng",
+        data=dubbed_video_path.read_bytes(),
+        file_name=dubbed_video_path.name,
     )
