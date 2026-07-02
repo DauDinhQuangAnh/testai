@@ -12,6 +12,45 @@ quyet dinh (it thay doi hon file nay) nam o `docs/memory/` - xem
   `phase1_feasibility/summarize_results.py` - khong sua tay bang do, chi sua bang
   cach chay lai script.
 
+## 0. Setup nhanh tren may dev that (RTX 4050) - lam theo thu tu
+
+Checklist gop tu cac phase, de bat dau tu 1 may Windows 11 sach:
+
+1. **Cai dat he thong (1 lan):**
+   - Python 3.12 that tu python.org (KHONG dung stub Microsoft Store; tick
+     "Add python.exe to PATH" khi cai). Kiem tra: `python --version`.
+   - FFmpeg: `winget install Gyan.FFmpeg` (mo terminal moi sau khi cai).
+     Kiem tra: `ffmpeg -version`.
+   - Driver NVIDIA moi nhat. Kiem tra: `nvidia-smi` phai hien RTX 4050.
+   - Docker Desktop (cho Postgres + Redis). Kiem tra: `docker --version`.
+   - Git. Kiem tra: `git --version`.
+2. **Lay code:** `git clone https://github.com/DauDinhQuangAnh/testai.git`
+   roi `cd testai`.
+3. **Virtualenv:** `python -m venv .venv` roi `.venv\Scripts\activate`.
+4. **Torch ban CUDA (TRUOC khi cai requirements):** xem lenh dung tai
+   https://pytorch.org/get-started/locally/ ung voi driver dang co, vi du:
+   `pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121`
+5. **Dependencies:** `pip install -r requirements-dev.txt` (bao gom ca
+   requirements.txt + ruff/pytest/pre-commit).
+6. **File .env:** copy `.env.example` thanh `.env`, dien:
+   - `HF_TOKEN`: tao tai khoan HuggingFace, accept license
+     `pyannote/speaker-diarization-3.1` va `pyannote/segmentation-3.0`
+     (bam "Agree" tren trang model), roi tao token tai
+     https://huggingface.co/settings/tokens
+   - `SESSION_SECRET_KEY`: chay `python -c "import secrets; print(secrets.token_hex(32))"`
+   - Cac bien Stripe/S3 de trong cung duoc (chi can khi test Phase 7/8).
+7. **Postgres + Redis:** `docker compose up -d`. Kiem tra: `docker ps` thay
+   2 container.
+8. **Pre-commit hook (1 lan):** `pre-commit install`.
+9. **Chay kiem tra theo dung thu tu o muc 8 ("Uu tien thu tu kiem thu")** -
+   bat dau bang `python phase1_feasibility/check_env.py`, roi `pytest`, roi
+   cac phase tu thap len cao. Gap loi thi ghi vao muc 8 (hoac bao AI dang lam
+   viec cung cap nhat).
+
+Luu y dung luong: lan chay dau se tai model tu HuggingFace (~3-6GB tuy model:
+Whisper medium ~1.5GB, large-v3 ~3GB, pyannote ~vai tram MB, NLLB ~2.4GB neu
+test dich) - can mang on dinh va o dia trong.
+
 ## 1. Muc tieu san pham
 
 Website AI tu dong tao/chinh sua phu de tu video/audio (kieu CapCut AI Subtitle,
@@ -452,9 +491,8 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
   sys.path (neu Streamlit/Celery version xu ly khac voi gia dinh), va Celery
   worker chay task GPU nang trong tien trinh worker co the gap van de tuong tu
   Phase 2 (OOM) nhung kho debug hon vi chay ngam.
-- **Repo hien tai CHUA duoc push len GitHub voi cac thay doi tu Phase 2 tro di**
-  (nguoi dung yeu cau lam tiep truoc, chua can day len git - commit gan nhat tren
-  remote chi co Phase 1). Nho hoi lai nguoi dung truoc khi commit/push.
+- ~~Repo chua push len GitHub~~ - DA push toan bo Phase 2-8 len
+  github.com/DauDinhQuangAnh/testai (2026-07-02) de mang qua may dev that.
 - **Chua xac minh Phase 4-8 tren may that** - TOAN BO code Editor, dich thuat,
   auth, billing, storage abstraction, CI moi chi duoc viet va ra soat bang mat
   (khong chay), do sandbox viet code khong co Python that. Danh sach rui ro
@@ -520,4 +558,7 @@ nhieu so voi "production-ready" that su (xem "Van de dang mo").
   (Billing/Stripe - `app/billing/`), va mot phan Phase 8 (`app/storage.py`,
   `.github/workflows/ci.yml`, hardening upload). Phase 9 co chu dich khong
   lam. TOAN BO CHUA CHAY THU - xem danh sach rui ro day du va thu tu kiem thu
-  de nghi o muc 8. Repo van CHUA push len GitHub (cho xac nhan tu nguoi dung).
+  de nghi o muc 8.
+- 2026-07-02: Them muc "0. Setup nhanh tren may dev that" (checklist gop) va
+  push toan bo code Phase 2-8 len GitHub de nguoi dung clone ve may RTX 4050
+  chay kiem thu.
