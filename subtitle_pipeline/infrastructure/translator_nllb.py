@@ -46,7 +46,7 @@ NLLB_LANGUAGE_CODES = {
 # Danh sach ngon ngu DICH/long tieng dung chung cho ca Upload va Editor page -
 # CO DINH (khong con derive tu NLLB_LANGUAGE_CODES.keys() nhu truoc, vi dict
 # do gio la danh sach ngon ngu NGUON rong hon nhieu). Phai khop dung voi
-# EDGE_TTS_VOICES trong infrastructure/tts_edge.py - day la gioi han thuc su
+# VOICE_OPTIONS trong infrastructure/tts_edge.py - day la gioi han thuc su
 # (edge-tts chi co giong doc cho tung ay ngon ngu).
 SUPPORTED_LANGUAGES = ["vi", "en", "zh", "ja", "ko", "fr", "es"]
 

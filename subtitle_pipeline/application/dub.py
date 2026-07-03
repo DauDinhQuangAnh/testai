@@ -67,12 +67,13 @@ def dub_and_export(
     work_dir: Path,
     out_dir: Path,
     stem: str,
+    voice: str | None = None,
 ) -> Path:
     segment_dir = work_dir / f"dub_{target_language}_segments"
     segment_dir.mkdir(parents=True, exist_ok=True)
 
     raw_clips: list[tuple[float, Path]] = []
-    with EdgeTTSSynthesizer(target_language) as tts:
+    with EdgeTTSSynthesizer(target_language, voice=voice) as tts:
         for i, seg in enumerate(segments):
             text = _clean_text_for_speech(seg.text)
             if not text:

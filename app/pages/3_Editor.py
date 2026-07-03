@@ -29,6 +29,7 @@ from app.jobs.tasks import dub_job, translate_job
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.export.formats import FORMAT_WRITERS
 from subtitle_pipeline.infrastructure.translator_nllb import SUPPORTED_LANGUAGES
+from subtitle_pipeline.infrastructure.tts_edge import VOICE_OPTIONS
 
 st.set_page_config(page_title="Editor - AI Subtitle Studio")
 st.title("Subtitle Editor")
@@ -115,8 +116,12 @@ st.caption(
     "xem HANDOFF.md Phase 5b)."
 )
 dub_target_language = st.selectbox("Ngon ngu long tieng", SUPPORTED_LANGUAGES, key="dub-language")
+dub_voice_label = st.selectbox(
+    "Giong doc", list(VOICE_OPTIONS[dub_target_language].keys()), key="dub-voice"
+)
+dub_voice = VOICE_OPTIONS[dub_target_language][dub_voice_label]
 if st.button("Dich + Long tieng"):
-    dub_job.delay(job.id, dub_target_language)
+    dub_job.delay(job.id, dub_target_language, dub_voice)
     st.info(
         "Da gui yeu cau dich + long tieng. Qua trinh chay ngam (dich roi long "
         f"tieng) co the mat vai phut. File ket qua: "

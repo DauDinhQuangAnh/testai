@@ -22,19 +22,71 @@ Viet local/GPU, co voice cloning, nhung chua duoc thu nghiem trong du an nay.
 import subprocess
 from pathlib import Path
 
-# Ma ngon ngu noi bo (giong NLLB_LANGUAGE_CODES) -> ten giong Edge TTS. Chi
-# liet ke ngon ngu pipeline nay da ho tro o buoc dich (xem
-# translator_nllb.SUPPORTED_LANGUAGES). Voi tieng Viet, HoaiMy va NamMinh la 2
-# giong Neural duoc danh gia tot nhat hien co (nu/nam).
-EDGE_TTS_VOICES = {
-    "vi": "vi-VN-HoaiMyNeural",
-    "en": "en-US-AriaNeural",
-    "zh": "zh-CN-XiaoxiaoNeural",
-    "ja": "ja-JP-NanamiNeural",
-    "ko": "ko-KR-SunHiNeural",
-    "fr": "fr-FR-DeniseNeural",
-    "es": "es-ES-ElviraNeural",
+# Cac giong "Multilingual" cua Azure Neural TTS - 1 giong doc duoc RAT NHIEU
+# ngon ngu (bao gom tieng Viet), tu nhan dien ngon ngu tu text dau vao. Da
+# xac nhan co mat trong danh sach cua edge-tts (endpoint mien phi). Dung lam
+# lua chon bo sung cho MOI ngon ngu ben canh giong ban dia.
+_MULTILINGUAL_VOICES = {
+    "Ava (nu, da ngon ngu)": "en-US-AvaMultilingualNeural",
+    "Emma (nu, da ngon ngu)": "en-US-EmmaMultilingualNeural",
+    "Seraphina (nu, da ngon ngu)": "de-DE-SeraphinaMultilingualNeural",
+    "Vivienne (nu, da ngon ngu)": "fr-FR-VivienneMultilingualNeural",
+    "Xiaoxiao DNN (nu, da ngon ngu)": "zh-CN-XiaoxiaoMultilingualNeural",
+    "Andrew (nam, da ngon ngu)": "en-US-AndrewMultilingualNeural",
+    "Brian (nam, da ngon ngu)": "en-US-BrianMultilingualNeural",
+    "Remy (nam, da ngon ngu)": "fr-FR-RemyMultilingualNeural",
+    "Florian (nam, da ngon ngu)": "de-DE-FlorianMultilingualNeural",
 }
+
+# Ma ngon ngu noi bo (khop translator_nllb.SUPPORTED_LANGUAGES) -> danh sach
+# giong cho nguoi dung chon: {nhan hien thi: ten giong Edge TTS}. Giong DAU
+# TIEN trong moi dict la mac dinh (dict Python giu thu tu chen). Moi ngon ngu
+# gom giong ban dia (nam/nu) + cac giong multilingual dung chung o tren.
+# Tieng Viet: HoaiMy/NamMinh la 2 giong thuan Viet duy nhat edge-tts co.
+VOICE_OPTIONS: dict[str, dict[str, str]] = {
+    "vi": {
+        "HoaiMy (nu, mac dinh)": "vi-VN-HoaiMyNeural",
+        "NamMinh (nam)": "vi-VN-NamMinhNeural",
+        **_MULTILINGUAL_VOICES,
+    },
+    "en": {
+        "Aria (nu, mac dinh)": "en-US-AriaNeural",
+        "Guy (nam)": "en-US-GuyNeural",
+        "Jenny (nu)": "en-US-JennyNeural",
+        **_MULTILINGUAL_VOICES,
+    },
+    "zh": {
+        "Xiaoxiao (nu, mac dinh)": "zh-CN-XiaoxiaoNeural",
+        "Yunxi (nam)": "zh-CN-YunxiNeural",
+        **_MULTILINGUAL_VOICES,
+    },
+    "ja": {
+        "Nanami (nu, mac dinh)": "ja-JP-NanamiNeural",
+        "Keita (nam)": "ja-JP-KeitaNeural",
+        **_MULTILINGUAL_VOICES,
+    },
+    "ko": {
+        "SunHi (nu, mac dinh)": "ko-KR-SunHiNeural",
+        "InJoon (nam)": "ko-KR-InJoonNeural",
+        **_MULTILINGUAL_VOICES,
+    },
+    "fr": {
+        "Denise (nu, mac dinh)": "fr-FR-DeniseNeural",
+        "Henri (nam)": "fr-FR-HenriNeural",
+        **_MULTILINGUAL_VOICES,
+    },
+    "es": {
+        "Elvira (nu, mac dinh)": "es-ES-ElviraNeural",
+        "Alvaro (nam)": "es-ES-AlvaroNeural",
+        **_MULTILINGUAL_VOICES,
+    },
+}
+
+
+def default_voice(language: str) -> str:
+    if language not in VOICE_OPTIONS:
+        raise ValueError(f"Ngon ngu TTS chua ho tro: {language}")
+    return next(iter(VOICE_OPTIONS[language].values()))
 
 # Chuan hoa 1 sample rate co dinh cho moi clip xuat ra (ep bang ffmpeg khi
 # chuyen mp3 -> wav ben duoi) de build_dub_track khong can doan/resample.
@@ -42,10 +94,8 @@ OUTPUT_SAMPLE_RATE = 24000
 
 
 class EdgeTTSSynthesizer:
-    def __init__(self, language: str):
-        if language not in EDGE_TTS_VOICES:
-            raise ValueError(f"Ngon ngu TTS chua ho tro: {language}")
-        self._voice = EDGE_TTS_VOICES[language]
+    def __init__(self, language: str, voice: str | None = None):
+        self._voice = voice or default_voice(language)
 
     def __enter__(self) -> "EdgeTTSSynthesizer":
         return self

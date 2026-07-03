@@ -937,3 +937,26 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   LUU Y: cac sua doi nay CHUA duoc chay ruff/pytest (phien nay chay trong
   sandbox khong co Python) - chay lai `pytest` + `ruff check` tren may dev
   truoc khi tin tuong.
+- 2026-07-03 (lan 11): **Them lua chon nhieu giong doc** theo yeu cau nguoi
+  dung. Da research danh sach giong edge-tts: tieng Viet chi co dung 2 giong
+  thuan Viet (`vi-VN-HoaiMyNeural` nu - mac dinh, `vi-VN-NamMinhNeural` nam);
+  bo sung them 9 giong "Multilingual" cua Azure (Ava/Emma/Seraphina/Vivienne/
+  Xiaoxiao nu, Andrew/Brian/Remy/Florian nam - 1 giong doc duoc nhieu ngon
+  ngu, bao gom tieng Viet, chat giong khac nhau) -> tieng Viet co tong cong
+  11 lua chon giong. Nguoi dung xac nhan muon tieng Viet co NHIEU lua chon
+  nhat co the - day da la toi da voi edge-tts (Microsoft chi phat hanh 2
+  giong thuan Viet). Thay doi:
+  - `tts_edge.py`: `EDGE_TTS_VOICES` (1 giong/ngon ngu) -> `VOICE_OPTIONS`
+    (dict {nhan hien thi: ten giong} cho moi ngon ngu, giong dau tien la mac
+    dinh) + ham `default_voice()`. Moi ngon ngu deu co giong ban dia nam/nu
+    + 6 giong multilingual. `EdgeTTSSynthesizer(language, voice=None)`.
+  - `dub.py` (`dub_and_export`), `tasks.py` (`process_video_job`/`dub_job`)
+    nhan them tham so `voice` truyen xuyen suot.
+  - `1_Upload.py` + `3_Editor.py`: them selectbox "Giong doc" (danh sach doi
+    theo ngon ngu da chon).
+  - Test moi: `tests/test_tts_voices.py` (tinh nhat quan VOICE_OPTIONS voi
+    SUPPORTED_LANGUAGES, default, khong goi mang).
+  CHUA chay thu: (1) ruff/pytest chua chay (sandbox khong Python), (2) chat
+  luong THUC TE cua 6 giong multilingual khi doc tieng Viet chua duoc nghe
+  thu tren may that - can nguoi dung tao job voi tung giong de danh gia, neu
+  giong nao doc tieng Viet te thi bao lai de loai khoi danh sach.

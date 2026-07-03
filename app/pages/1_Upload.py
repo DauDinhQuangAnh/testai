@@ -29,6 +29,7 @@ from app.config import AppConfig
 from app.jobs.repository import JobRepository
 from app.jobs.tasks import process_video_job
 from subtitle_pipeline.infrastructure.translator_nllb import SUPPORTED_LANGUAGES
+from subtitle_pipeline.infrastructure.tts_edge import VOICE_OPTIONS
 
 ALLOWED_EXTENSIONS = {"mp4", "mkv", "mov", "wav", "mp3", "m4a"}
 MAX_FILE_SIZE_MB = 500
@@ -45,6 +46,10 @@ target_language = st.selectbox(
     SUPPORTED_LANGUAGES,
     index=SUPPORTED_LANGUAGES.index("vi") if "vi" in SUPPORTED_LANGUAGES else 0,
 )
+# Danh sach giong phu thuoc ngon ngu vua chon (moi ngon ngu co giong ban dia
+# nam/nu + cac giong multilingual) - xem tts_edge.VOICE_OPTIONS.
+voice_label = st.selectbox("Giong doc", list(VOICE_OPTIONS[target_language].keys()))
+voice = VOICE_OPTIONS[target_language][voice_label]
 
 if uploaded_file is not None:
     extension = uploaded_file.name.rsplit(".", 1)[-1].lower()
@@ -71,7 +76,7 @@ if uploaded_file is not None:
             output_dir=job_dir / "output",
             job_id=job_id,
         )
-        process_video_job.delay(job.id, target_language)
+        process_video_job.delay(job.id, target_language, voice)
 
         st.success(f"Da tao job `{job.id}`. Xem trang thai o trang Dashboard.")
         st.info(
