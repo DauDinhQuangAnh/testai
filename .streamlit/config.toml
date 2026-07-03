@@ -1,0 +1,13 @@
+# Theme + cau hinh server cho Streamlit (tu dong nap khi `streamlit run`).
+
+[theme]
+primaryColor = "#4C6FFF"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F7FB"
+textColor = "#1A1F36"
+font = "sans serif"
+
+[server]
+# PHAI >= MAX_FILE_SIZE_MB trong app/pages/1_Upload.py (500MB) - mac dinh
+# Streamlit chi cho upload 200MB, nho hon gioi han app tu dat ra.
+maxUploadSize = 500

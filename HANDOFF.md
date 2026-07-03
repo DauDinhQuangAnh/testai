@@ -978,3 +978,29 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   voice-over, khong phai loi). Nang cap sau neu can: sidechain ducking
   (`sidechaincompress` - chi giam tieng goc DUNG LUC giong dich noi, nhung
   phuc tap hon nhieu). CHUA chay thu tren may that.
+- 2026-07-03 (lan 13): **Nang cap UI/UX toan bo cac trang Streamlit** theo yeu
+  cau nguoi dung ("giao dien qua don gian, can co quy trinh hon"):
+  - `.streamlit/config.toml` MOI: theme mau rieng + `maxUploadSize=500` -
+    **sua 1 bug tiem an co that**: Streamlit mac dinh chi cho upload 200MB
+    trong khi app tu dat gioi han 500MB (nguoi dung upload file 200-500MB se
+    bi Streamlit chan truoc khi code app kip kiem tra).
+  - `app/ui.py` MOI: map `Job.stage` -> (phan tram, nhan tieng Viet) dung
+    chung, de progress bar nhat quan giua cac trang.
+  - `Home.py`: metric tong quan (tong/dang chay/hoan thanh/that bai) +
+    page_link dieu huong + mo ta quy trinh 3 buoc.
+  - `1_Upload.py`: bo cuc wizard 3 buoc (chon file -> tuy chon long tieng ->
+    tao job); them **toggle tat long tieng** (chi tao phu de -
+    `target_language=None`, kha nang von co san cua `process_video_job`
+    nhung truoc do UI khong expose); hien ten/kich thuoc file truoc khi tao.
+  - `2_Dashboard.py`: **tu lam moi moi 3s** bang `st.fragment(run_every=3)`
+    (khong con nut "Lam moi" thu cong), progress bar theo stage (10 buoc),
+    metric tong quan, loc theo trang thai (`st.segmented_control`), nut tai
+    file xep cot.
+  - `3_Editor.py`: chia 3 tab (Chinh sua phu de / Dich / Long tieng lai),
+    tab chinh sua dat video canh bang phu de (2 cot).
+  - `requirements.txt`: bump `streamlit>=1.41.0` (can cho fragment
+    run_every/st.rerun scope/icon tren button/segmented_control).
+  CHUA chay thu tren may that (sandbox khong co Python) - rui ro chinh: cac
+  API Streamlit moi dung (fragment, segmented_control, icon) can dung phien
+  ban >=1.41, neu venv tren may dev dang co ban cu hon thi phai
+  `pip install -U streamlit` truoc khi chay lai.

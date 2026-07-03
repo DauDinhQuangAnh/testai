@@ -13,8 +13,10 @@ deepfilternet>=0.5.6
 python-dotenv>=1.0.1
 huggingface_hub>=0.23.0
 
-# Phase 3 - Streamlit App + job queue
-streamlit>=1.35.0
+# Phase 3 - Streamlit App + job queue. streamlit>=1.41 vi UI dung
+# st.fragment(run_every) + st.rerun(scope) (1.37), icon tren button (1.39),
+# st.segmented_control (1.40).
+streamlit>=1.41.0
 sqlalchemy>=2.0.30
 psycopg2-binary>=2.9.9
 celery>=5.4.0
