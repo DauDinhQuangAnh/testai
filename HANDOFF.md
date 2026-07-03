@@ -1004,3 +1004,13 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   API Streamlit moi dung (fragment, segmented_control, icon) can dung phien
   ban >=1.41, neu venv tren may dev dang co ban cu hon thi phai
   `pip install -U streamlit` truoc khi chay lai.
+- 2026-07-03 (lan 14): **Chuyen TOAN BO chuoi hien thi cho nguoi dung sang
+  tieng Viet CO DAU** theo yeu cau nguoi dung (truoc do viet khong dau tu
+  dau du an). Pham vi: 4 trang UI (`Home.py`, `1_Upload.py`, `2_Dashboard.py`,
+  `3_Editor.py`), nhan stage/status (`app/ui.py`), nhan giong doc
+  (`tts_edge.VOICE_OPTIONS`), thong bao loi hien tren Dashboard
+  (`tasks.py` error_message, ValueError trong `translator_nllb.py`/
+  `tts_edge.py`). Quy uoc moi ghi vao `docs/CODE_STYLE.md`: chuoi UI PHAI co
+  dau; comment/docstring/tai lieu noi bo (HANDOFF.md, docs/) van giu khong
+  dau. LUU Y: nhan giong doc trong VOICE_OPTIONS la KEY cua dict - doi nhan
+  khong anh huong logic (test chi assert theo voice ID/values), da ra soat.

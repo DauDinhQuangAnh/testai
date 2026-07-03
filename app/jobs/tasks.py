@@ -86,7 +86,7 @@ def process_video_job(
                     job_id,
                     status=JobStatus.RUNNING,
                     stage="translate_dub_skipped",
-                    error_message=f"Bo qua dich/long tieng: {exc}",
+                    error_message=f"Bỏ qua dịch/lồng tiếng: {exc}",
                 )
 
         repo.update_status(job_id, status=JobStatus.DONE, stage="done")

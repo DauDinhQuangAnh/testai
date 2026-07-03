@@ -36,12 +36,12 @@ repo = JobRepository()
 done_jobs = [j for j in repo.list_all() if j.status == JobStatus.DONE]
 
 if not done_jobs:
-    st.info("Chua co job nao hoan thanh. Vao trang Upload de tao job moi.")
+    st.info("Chưa có job nào hoàn thành. Vào trang Upload để tạo job mới.")
     st.page_link("pages/1_Upload.py", label="Upload video/audio", icon=":material/upload:")
     st.stop()
 
 job_options = {f"{j.filename} ({j.id[:8]})": j for j in done_jobs}
-selected_label = st.selectbox("Chon job", list(job_options.keys()))
+selected_label = st.selectbox("Chọn job", list(job_options.keys()))
 job = job_options[selected_label]
 
 output_dir = Path(job.output_dir)
@@ -49,21 +49,21 @@ input_path = Path(job.input_path)
 json_path = output_dir / f"{input_path.stem}.json"
 
 if not json_path.exists():
-    st.error(f"Khong tim thay file ket qua: {json_path}")
+    st.error(f"Không tìm thấy file kết quả: {json_path}")
     st.stop()
 
 with open(json_path, encoding="utf-8") as f:
     raw_segments = json.load(f)
 
 tab_edit, tab_translate, tab_dub = st.tabs(
-    ["Chinh sua phu de", "Dich phu de", "Long tieng lai"]
+    ["Chỉnh sửa phụ đề", "Dịch phụ đề", "Lồng tiếng lại"]
 )
 
 with tab_edit:
     col_video, col_editor = st.columns([2, 3])
 
     with col_video:
-        st.caption("Video/audio goc")
+        st.caption("Video/audio gốc")
         if input_path.suffix.lower() in {".mp4", ".mkv", ".mov"}:
             st.video(str(input_path))
         else:
@@ -73,10 +73,10 @@ with tab_edit:
         edited_df = st.data_editor(
             pd.DataFrame(raw_segments),
             column_config={
-                "start": st.column_config.NumberColumn("Bat dau (s)", format="%.2f"),
-                "end": st.column_config.NumberColumn("Ket thuc (s)", format="%.2f"),
-                "text": st.column_config.TextColumn("Noi dung", width="large"),
-                "speaker": st.column_config.TextColumn("Nguoi noi"),
+                "start": st.column_config.NumberColumn("Bắt đầu (s)", format="%.2f"),
+                "end": st.column_config.NumberColumn("Kết thúc (s)", format="%.2f"),
+                "text": st.column_config.TextColumn("Nội dung", width="large"),
+                "speaker": st.column_config.TextColumn("Người nói"),
             },
             num_rows="dynamic",
             use_container_width=True,
@@ -86,7 +86,7 @@ with tab_edit:
         def _clean_speaker(value) -> str | None:
             return None if pd.isna(value) else str(value)
 
-        if st.button("Luu va xuat lai file", type="primary", icon=":material/save:"):
+        if st.button("Lưu và xuất lại file", type="primary", icon=":material/save:"):
             edited_segments = [
                 SubtitleSegment(
                     start=float(row["start"]),
@@ -100,57 +100,57 @@ with tab_edit:
                 (output_dir / f"{input_path.stem}.{fmt}").write_text(
                     writer(edited_segments), encoding="utf-8"
                 )
-            st.success("Da luu va xuat lai file phu de.")
+            st.success("Đã lưu và xuất lại file phụ đề.")
 
 with tab_translate:
     st.caption(
-        "Chi xuat phu de da dich (khong tao audio). File ket qua co hau to "
-        "ngon ngu, vd. video.vi.srt."
+        "Chỉ xuất phụ đề đã dịch (không tạo audio). File kết quả có hậu tố "
+        "ngôn ngữ, ví dụ video.vi.srt."
     )
-    target_language = st.selectbox("Ngon ngu dich", SUPPORTED_LANGUAGES, key="translate-language")
-    if st.button("Dich va xuat file moi", icon=":material/translate:"):
+    target_language = st.selectbox("Ngôn ngữ dịch", SUPPORTED_LANGUAGES, key="translate-language")
+    if st.button("Dịch và xuất file mới", icon=":material/translate:"):
         translate_job.delay(job.id, target_language)
         st.info(
-            f"Da gui yeu cau dich sang '{target_language}'. File se xuat hien "
-            f"trong Dashboard sau it phut."
+            f"Đã gửi yêu cầu dịch sang '{target_language}'. File sẽ xuất hiện "
+            f"trong Dashboard sau ít phút."
         )
 
 with tab_dub:
     st.caption(
-        "Upload da tu long tieng theo lua chon luc tao job. Dung tab nay de lam "
-        "lai voi ngon ngu/giong/che do khac - he thong tu dich neu chua co ban "
-        "dich. Giong doc la giong chuan, chua ho tro clone giong goc."
+        "Upload đã tự lồng tiếng theo lựa chọn lúc tạo job. Dùng tab này để làm "
+        "lại với ngôn ngữ/giọng/chế độ khác - hệ thống tự dịch nếu chưa có bản "
+        "dịch. Giọng đọc là giọng chuẩn, chưa hỗ trợ clone giọng gốc."
     )
     col_lang, col_voice = st.columns(2)
     dub_target_language = col_lang.selectbox(
-        "Ngon ngu long tieng", SUPPORTED_LANGUAGES, key="dub-language"
+        "Ngôn ngữ lồng tiếng", SUPPORTED_LANGUAGES, key="dub-language"
     )
     dub_voice_label = col_voice.selectbox(
-        "Giong doc", list(VOICE_OPTIONS[dub_target_language].keys()), key="dub-voice"
+        "Giọng đọc", list(VOICE_OPTIONS[dub_target_language].keys()), key="dub-voice"
     )
     dub_voice = VOICE_OPTIONS[dub_target_language][dub_voice_label]
 
-    DUB_AUDIO_MODE_REPLACE = "Xoa tieng goc (chi con tieng dich)"
-    DUB_AUDIO_MODE_KEEP = "Giu tieng goc giam 70% + tieng dich len tren (kieu thuyet minh)"
+    DUB_AUDIO_MODE_REPLACE = "Xóa tiếng gốc (chỉ còn tiếng dịch)"
+    DUB_AUDIO_MODE_KEEP = "Giữ tiếng gốc giảm 70% + tiếng dịch lên trên (kiểu thuyết minh)"
     dub_audio_mode = st.radio(
-        "Xu ly tieng goc",
+        "Xử lý tiếng gốc",
         [DUB_AUDIO_MODE_REPLACE, DUB_AUDIO_MODE_KEEP],
         key="dub-audio-mode",
     )
     dub_keep_original = dub_audio_mode == DUB_AUDIO_MODE_KEEP
 
-    if st.button("Dich + Long tieng", type="primary", icon=":material/record_voice_over:"):
+    if st.button("Dịch + Lồng tiếng", type="primary", icon=":material/record_voice_over:"):
         dub_job.delay(job.id, dub_target_language, dub_voice, dub_keep_original)
         st.info(
-            "Da gui yeu cau dich + long tieng (chay ngam, co the mat vai phut). "
-            f"File ket qua: {input_path.stem}.{dub_target_language}.dubbed.mp4"
+            "Đã gửi yêu cầu dịch + lồng tiếng (chạy ngầm, có thể mất vài phút). "
+            f"File kết quả: {input_path.stem}.{dub_target_language}.dubbed.mp4"
         )
 
     dubbed_video_path = output_dir / f"{input_path.stem}.{dub_target_language}.dubbed.mp4"
     if dubbed_video_path.exists():
         st.video(str(dubbed_video_path))
         st.download_button(
-            "Tai video da long tieng",
+            "Tải video đã lồng tiếng",
             data=dubbed_video_path.read_bytes(),
             file_name=dubbed_video_path.name,
             icon=":material/download:",

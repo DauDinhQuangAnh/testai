@@ -33,8 +33,8 @@ st.title("Upload video/audio")
 config = AppConfig.from_env()
 job_repo = JobRepository()
 
-st.subheader("Buoc 1 - Chon file", divider=True)
-uploaded_file = st.file_uploader("Video/audio dau vao", type=sorted(ALLOWED_EXTENSIONS))
+st.subheader("Bước 1 - Chọn file", divider=True)
+uploaded_file = st.file_uploader("Video/audio đầu vào", type=sorted(ALLOWED_EXTENSIONS))
 
 file_valid = False
 if uploaded_file is not None:
@@ -42,21 +42,21 @@ if uploaded_file is not None:
     size_mb = len(uploaded_file.getvalue()) / (1024 * 1024)
 
     col_name, col_size = st.columns(2)
-    col_name.metric("Ten file", uploaded_file.name)
-    col_size.metric("Kich thuoc", f"{size_mb:.1f} MB")
+    col_name.metric("Tên file", uploaded_file.name)
+    col_size.metric("Kích thước", f"{size_mb:.1f} MB")
 
     if extension not in ALLOWED_EXTENSIONS:
-        st.error(f"Dinh dang '.{extension}' khong duoc ho tro.")
+        st.error(f"Định dạng '.{extension}' không được hỗ trợ.")
     elif size_mb > MAX_FILE_SIZE_MB:
-        st.error(f"File qua lon ({size_mb:.0f} MB), gioi han la {MAX_FILE_SIZE_MB} MB.")
+        st.error(f"File quá lớn ({size_mb:.0f} MB), giới hạn là {MAX_FILE_SIZE_MB} MB.")
     else:
         file_valid = True
 
-st.subheader("Buoc 2 - Tuy chon long tieng", divider=True)
+st.subheader("Bước 2 - Tùy chọn lồng tiếng", divider=True)
 dubbing_enabled = st.toggle(
-    "Long tieng tu dong sau khi tao phu de",
+    "Lồng tiếng tự động sau khi tạo phụ đề",
     value=True,
-    help="Tat neu chi can phu de (job chay nhanh hon, khong can internet cho TTS).",
+    help="Tắt nếu chỉ cần phụ đề (job chạy nhanh hơn, không cần internet cho TTS).",
 )
 
 target_language = None
@@ -65,30 +65,30 @@ keep_original_audio = False
 if dubbing_enabled:
     col_lang, col_voice = st.columns(2)
     target_language = col_lang.selectbox(
-        "Ngon ngu long tieng",
+        "Ngôn ngữ lồng tiếng",
         SUPPORTED_LANGUAGES,
         index=SUPPORTED_LANGUAGES.index("vi") if "vi" in SUPPORTED_LANGUAGES else 0,
     )
     # Danh sach giong doi theo ngon ngu (giong ban dia nam/nu + multilingual).
-    voice_label = col_voice.selectbox("Giong doc", list(VOICE_OPTIONS[target_language].keys()))
+    voice_label = col_voice.selectbox("Giọng đọc", list(VOICE_OPTIONS[target_language].keys()))
     voice = VOICE_OPTIONS[target_language][voice_label]
 
-    AUDIO_MODE_REPLACE = "Xoa tieng goc (chi con tieng dich)"
-    AUDIO_MODE_KEEP = "Giu tieng goc giam 70% + tieng dich len tren (kieu thuyet minh)"
+    AUDIO_MODE_REPLACE = "Xóa tiếng gốc (chỉ còn tiếng dịch)"
+    AUDIO_MODE_KEEP = "Giữ tiếng gốc giảm 70% + tiếng dịch lên trên (kiểu thuyết minh)"
     audio_mode = st.radio(
-        "Xu ly tieng goc",
+        "Xử lý tiếng gốc",
         [AUDIO_MODE_REPLACE, AUDIO_MODE_KEEP],
         help=(
-            "Giu tieng goc: giu khong khi nen (nhac, hieu ung) cua video goc, "
-            "giong doc dich tron len tren - video goc PHAI co san audio."
+            "Giữ tiếng gốc: giữ không khí nền (nhạc, hiệu ứng) của video gốc, "
+            "giọng đọc dịch trộn lên trên - video gốc PHẢI có sẵn audio."
         ),
     )
     keep_original_audio = audio_mode == AUDIO_MODE_KEEP
 
-st.subheader("Buoc 3 - Tao job", divider=True)
+st.subheader("Bước 3 - Tạo job", divider=True)
 if not file_valid:
-    st.caption("Chon file hop le o Buoc 1 de tiep tuc.")
-elif st.button("Tao job xu ly", type="primary", icon=":material/rocket_launch:"):
+    st.caption("Chọn file hợp lệ ở Bước 1 để tiếp tục.")
+elif st.button("Tạo job xử lý", type="primary", icon=":material/rocket_launch:"):
     job_id = str(uuid.uuid4())
     job_dir = config.storage_dir / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
@@ -104,14 +104,14 @@ elif st.button("Tao job xu ly", type="primary", icon=":material/rocket_launch:")
     )
     process_video_job.delay(job.id, target_language, voice, keep_original_audio)
 
-    st.success(f"Da tao job `{job.id[:8]}`.")
+    st.success(f"Đã tạo job `{job.id[:8]}`.")
     if dubbing_enabled:
         st.caption(
-            f"Job tu chay het: tach am -> nhan dien loi noi -> dich sang "
-            f"'{target_language}' -> long tieng -> xuat video, khong can thao tac them."
+            f"Job tự chạy hết: tách âm -> nhận diện lời nói -> dịch sang "
+            f"'{target_language}' -> lồng tiếng -> xuất video, không cần thao tác thêm."
         )
     else:
-        st.caption("Job chi tao phu de (khong long tieng).")
+        st.caption("Job chỉ tạo phụ đề (không lồng tiếng).")
     st.page_link(
-        "pages/2_Dashboard.py", label="Xem tien do o Dashboard", icon=":material/monitoring:"
+        "pages/2_Dashboard.py", label="Xem tiến độ ở Dashboard", icon=":material/monitoring:"
     )

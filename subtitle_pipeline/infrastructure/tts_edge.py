@@ -27,15 +27,15 @@ from pathlib import Path
 # xac nhan co mat trong danh sach cua edge-tts (endpoint mien phi). Dung lam
 # lua chon bo sung cho MOI ngon ngu ben canh giong ban dia.
 _MULTILINGUAL_VOICES = {
-    "Ava (nu, da ngon ngu)": "en-US-AvaMultilingualNeural",
-    "Emma (nu, da ngon ngu)": "en-US-EmmaMultilingualNeural",
-    "Seraphina (nu, da ngon ngu)": "de-DE-SeraphinaMultilingualNeural",
-    "Vivienne (nu, da ngon ngu)": "fr-FR-VivienneMultilingualNeural",
-    "Xiaoxiao DNN (nu, da ngon ngu)": "zh-CN-XiaoxiaoMultilingualNeural",
-    "Andrew (nam, da ngon ngu)": "en-US-AndrewMultilingualNeural",
-    "Brian (nam, da ngon ngu)": "en-US-BrianMultilingualNeural",
-    "Remy (nam, da ngon ngu)": "fr-FR-RemyMultilingualNeural",
-    "Florian (nam, da ngon ngu)": "de-DE-FlorianMultilingualNeural",
+    "Ava (nữ, đa ngôn ngữ)": "en-US-AvaMultilingualNeural",
+    "Emma (nữ, đa ngôn ngữ)": "en-US-EmmaMultilingualNeural",
+    "Seraphina (nữ, đa ngôn ngữ)": "de-DE-SeraphinaMultilingualNeural",
+    "Vivienne (nữ, đa ngôn ngữ)": "fr-FR-VivienneMultilingualNeural",
+    "Xiaoxiao ĐNN (nữ, đa ngôn ngữ)": "zh-CN-XiaoxiaoMultilingualNeural",
+    "Andrew (nam, đa ngôn ngữ)": "en-US-AndrewMultilingualNeural",
+    "Brian (nam, đa ngôn ngữ)": "en-US-BrianMultilingualNeural",
+    "Remy (nam, đa ngôn ngữ)": "fr-FR-RemyMultilingualNeural",
+    "Florian (nam, đa ngôn ngữ)": "de-DE-FlorianMultilingualNeural",
 }
 
 # Ma ngon ngu noi bo (khop translator_nllb.SUPPORTED_LANGUAGES) -> danh sach
@@ -45,38 +45,38 @@ _MULTILINGUAL_VOICES = {
 # Tieng Viet: HoaiMy/NamMinh la 2 giong thuan Viet duy nhat edge-tts co.
 VOICE_OPTIONS: dict[str, dict[str, str]] = {
     "vi": {
-        "HoaiMy (nu, mac dinh)": "vi-VN-HoaiMyNeural",
+        "HoaiMy (nữ, mặc định)": "vi-VN-HoaiMyNeural",
         "NamMinh (nam)": "vi-VN-NamMinhNeural",
         **_MULTILINGUAL_VOICES,
     },
     "en": {
-        "Aria (nu, mac dinh)": "en-US-AriaNeural",
+        "Aria (nữ, mặc định)": "en-US-AriaNeural",
         "Guy (nam)": "en-US-GuyNeural",
-        "Jenny (nu)": "en-US-JennyNeural",
+        "Jenny (nữ)": "en-US-JennyNeural",
         **_MULTILINGUAL_VOICES,
     },
     "zh": {
-        "Xiaoxiao (nu, mac dinh)": "zh-CN-XiaoxiaoNeural",
+        "Xiaoxiao (nữ, mặc định)": "zh-CN-XiaoxiaoNeural",
         "Yunxi (nam)": "zh-CN-YunxiNeural",
         **_MULTILINGUAL_VOICES,
     },
     "ja": {
-        "Nanami (nu, mac dinh)": "ja-JP-NanamiNeural",
+        "Nanami (nữ, mặc định)": "ja-JP-NanamiNeural",
         "Keita (nam)": "ja-JP-KeitaNeural",
         **_MULTILINGUAL_VOICES,
     },
     "ko": {
-        "SunHi (nu, mac dinh)": "ko-KR-SunHiNeural",
+        "SunHi (nữ, mặc định)": "ko-KR-SunHiNeural",
         "InJoon (nam)": "ko-KR-InJoonNeural",
         **_MULTILINGUAL_VOICES,
     },
     "fr": {
-        "Denise (nu, mac dinh)": "fr-FR-DeniseNeural",
+        "Denise (nữ, mặc định)": "fr-FR-DeniseNeural",
         "Henri (nam)": "fr-FR-HenriNeural",
         **_MULTILINGUAL_VOICES,
     },
     "es": {
-        "Elvira (nu, mac dinh)": "es-ES-ElviraNeural",
+        "Elvira (nữ, mặc định)": "es-ES-ElviraNeural",
         "Alvaro (nam)": "es-ES-AlvaroNeural",
         **_MULTILINGUAL_VOICES,
     },
@@ -85,7 +85,7 @@ VOICE_OPTIONS: dict[str, dict[str, str]] = {
 
 def default_voice(language: str) -> str:
     if language not in VOICE_OPTIONS:
-        raise ValueError(f"Ngon ngu TTS chua ho tro: {language}")
+        raise ValueError(f"Ngôn ngữ TTS chưa hỗ trợ: {language}")
     return next(iter(VOICE_OPTIONS[language].values()))
 
 # Chuan hoa 1 sample rate co dinh cho moi clip xuat ra (ep bang ffmpeg khi

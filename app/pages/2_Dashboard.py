@@ -25,6 +25,11 @@ st.set_page_config(
 )
 st.title("Dashboard job")
 
+FILTER_ALL = "Tất cả"
+FILTER_RUNNING = "Đang xử lý"
+FILTER_DONE = "Hoàn thành"
+FILTER_FAILED = "Thất bại"
+
 
 def _render_job(job) -> None:
     with st.expander(
@@ -34,10 +39,10 @@ def _render_job(job) -> None:
     ):
         if job.status in (JobStatus.QUEUED, JobStatus.RUNNING):
             fraction, label = stage_progress(job.stage)
-            st.progress(fraction, text=f"Buoc hien tai: {label}")
+            st.progress(fraction, text=f"Bước hiện tại: {label}")
         if job.error_message:
             st.warning(job.error_message)
-        st.caption(f"Tao luc: {job.created_at} | Cap nhat: {job.updated_at}")
+        st.caption(f"Tạo lúc: {job.created_at} | Cập nhật: {job.updated_at}")
 
         if job.status == JobStatus.DONE:
             output_dir = Path(job.output_dir)
@@ -55,11 +60,11 @@ def _render_job(job) -> None:
 
         st.divider()
         confirm_delete = st.checkbox(
-            "Xac nhan xoa (xoa vinh vien ca video goc lan ket qua tren dia)",
+            "Xác nhận xóa (xóa vĩnh viễn cả video gốc lẫn kết quả trên đĩa)",
             key=f"confirm-delete-{job.id}",
         )
         if st.button(
-            "Xoa job",
+            "Xóa job",
             key=f"delete-{job.id}",
             disabled=not confirm_delete,
             icon=":material/delete:",
@@ -81,27 +86,27 @@ def _render_dashboard() -> None:
     done = sum(1 for j in jobs if j.status == JobStatus.DONE)
     failed = sum(1 for j in jobs if j.status == JobStatus.FAILED)
     col_total, col_running, col_done, col_failed = st.columns(4)
-    col_total.metric("Tong so job", len(jobs))
-    col_running.metric("Dang xu ly", running)
-    col_done.metric("Hoan thanh", done)
-    col_failed.metric("That bai", failed)
+    col_total.metric("Tổng số job", len(jobs))
+    col_running.metric("Đang xử lý", running)
+    col_done.metric("Hoàn thành", done)
+    col_failed.metric("Thất bại", failed)
 
     if not jobs:
-        st.info("Chua co job nao. Vao trang Upload de tao job moi.")
+        st.info("Chưa có job nào. Vào trang Upload để tạo job mới.")
         st.page_link("pages/1_Upload.py", label="Upload video/audio", icon=":material/upload:")
         return
 
     status_filter = st.segmented_control(
-        "Loc theo trang thai",
-        options=["Tat ca", "Dang xu ly", "Hoan thanh", "That bai"],
-        default="Tat ca",
+        "Lọc theo trạng thái",
+        options=[FILTER_ALL, FILTER_RUNNING, FILTER_DONE, FILTER_FAILED],
+        default=FILTER_ALL,
     )
     visible_jobs = {
-        "Tat ca": jobs,
-        "Dang xu ly": [j for j in jobs if j.status in (JobStatus.QUEUED, JobStatus.RUNNING)],
-        "Hoan thanh": [j for j in jobs if j.status == JobStatus.DONE],
-        "That bai": [j for j in jobs if j.status == JobStatus.FAILED],
-    }[status_filter or "Tat ca"]
+        FILTER_ALL: jobs,
+        FILTER_RUNNING: [j for j in jobs if j.status in (JobStatus.QUEUED, JobStatus.RUNNING)],
+        FILTER_DONE: [j for j in jobs if j.status == JobStatus.DONE],
+        FILTER_FAILED: [j for j in jobs if j.status == JobStatus.FAILED],
+    }[status_filter or FILTER_ALL]
 
     for job in visible_jobs:
         _render_job(job)
