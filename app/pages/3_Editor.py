@@ -120,8 +120,16 @@ dub_voice_label = st.selectbox(
     "Giong doc", list(VOICE_OPTIONS[dub_target_language].keys()), key="dub-voice"
 )
 dub_voice = VOICE_OPTIONS[dub_target_language][dub_voice_label]
+DUB_AUDIO_MODE_REPLACE = "Xoa tieng goc (chi con tieng dich)"
+DUB_AUDIO_MODE_KEEP = "Giu tieng goc giam 70% + tieng dich len tren (kieu thuyet minh)"
+dub_audio_mode = st.radio(
+    "Xu ly tieng goc",
+    [DUB_AUDIO_MODE_REPLACE, DUB_AUDIO_MODE_KEEP],
+    key="dub-audio-mode",
+)
+dub_keep_original = dub_audio_mode == DUB_AUDIO_MODE_KEEP
 if st.button("Dich + Long tieng"):
-    dub_job.delay(job.id, dub_target_language, dub_voice)
+    dub_job.delay(job.id, dub_target_language, dub_voice, dub_keep_original)
     st.info(
         "Da gui yeu cau dich + long tieng. Qua trinh chay ngam (dich roi long "
         f"tieng) co the mat vai phut. File ket qua: "

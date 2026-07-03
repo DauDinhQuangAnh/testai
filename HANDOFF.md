@@ -957,6 +957,24 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   - Test moi: `tests/test_tts_voices.py` (tinh nhat quan VOICE_OPTIONS voi
     SUPPORTED_LANGUAGES, default, khong goi mang).
   CHUA chay thu: (1) ruff/pytest chua chay (sandbox khong Python), (2) chat
-  luong THUC TE cua 6 giong multilingual khi doc tieng Viet chua duoc nghe
+  luong THUC TE cua cac giong multilingual khi doc tieng Viet chua duoc nghe
   thu tren may that - can nguoi dung tao job voi tung giong de danh gia, neu
   giong nao doc tieng Viet te thi bao lai de loai khoi danh sach.
+- 2026-07-03 (lan 12): **Them 2 che do xu ly tieng goc khi long tieng** theo
+  yeu cau nguoi dung:
+  - "Xoa tieng goc": thay audio hoan toan bang tieng dich (hanh vi cu, van
+    la mac dinh).
+  - "Giu tieng goc": tieng goc giam 70% (`volume=0.3`), tieng dich tron len
+    tren - kieu thuyet minh/voice-over phim tai lieu, giu duoc nhac nen/hieu
+    ung. Ky thuat: ffmpeg `filter_complex` voi `amix=inputs=2:normalize=0`
+    (normalize=0 de amix khong tu chia doi am luong ca 2 track).
+  Thay doi: `audio_mux.py` (tach `_build_mux_command()` thuan de test duoc
+  khong can ffmpeg + hang so `KEEP_ORIGINAL_VOLUME=0.3`),
+  `dub.py`/`tasks.py` truyen `keep_original_audio` xuyen suot, radio chon
+  che do o `1_Upload.py` + `3_Editor.py`, test moi trong
+  `tests/test_audio_mux.py`. **Han che da biet:** che do "giu tieng goc" yeu
+  cau video goc PHAI co audio stream (video cam se loi ffmpeg - che do xoa
+  tieng thi khong sao); tieng noi goc van nghe duoc mo mo duoi nen (dac thu
+  voice-over, khong phai loi). Nang cap sau neu can: sidechain ducking
+  (`sidechaincompress` - chi giam tieng goc DUNG LUC giong dich noi, nhung
+  phuc tap hon nhieu). CHUA chay thu tren may that.

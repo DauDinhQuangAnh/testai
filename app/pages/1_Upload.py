@@ -51,6 +51,18 @@ target_language = st.selectbox(
 voice_label = st.selectbox("Giong doc", list(VOICE_OPTIONS[target_language].keys()))
 voice = VOICE_OPTIONS[target_language][voice_label]
 
+AUDIO_MODE_REPLACE = "Xoa tieng goc (chi con tieng dich)"
+AUDIO_MODE_KEEP = "Giu tieng goc giam 70% + tieng dich len tren (kieu thuyet minh)"
+audio_mode = st.radio(
+    "Xu ly tieng goc khi long tieng",
+    [AUDIO_MODE_REPLACE, AUDIO_MODE_KEEP],
+    help=(
+        "Giu tieng goc: giu lai khong khi nen (nhac, hieu ung) cua video goc, "
+        "giong doc dich duoc tron len tren - luu y video goc PHAI co san audio."
+    ),
+)
+keep_original_audio = audio_mode == AUDIO_MODE_KEEP
+
 if uploaded_file is not None:
     extension = uploaded_file.name.rsplit(".", 1)[-1].lower()
     size_mb = len(uploaded_file.getvalue()) / (1024 * 1024)
@@ -76,7 +88,7 @@ if uploaded_file is not None:
             output_dir=job_dir / "output",
             job_id=job_id,
         )
-        process_video_job.delay(job.id, target_language, voice)
+        process_video_job.delay(job.id, target_language, voice, keep_original_audio)
 
         st.success(f"Da tao job `{job.id}`. Xem trang thai o trang Dashboard.")
         st.info(

@@ -68,6 +68,7 @@ def dub_and_export(
     out_dir: Path,
     stem: str,
     voice: str | None = None,
+    keep_original_audio: bool = False,
 ) -> Path:
     segment_dir = work_dir / f"dub_{target_language}_segments"
     segment_dir.mkdir(parents=True, exist_ok=True)
@@ -92,7 +93,9 @@ def dub_and_export(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     output_path = out_dir / f"{stem}.{target_language}.dubbed.mp4"
-    mux_audio_into_video(source_video, dub_track_path, output_path)
+    mux_audio_into_video(
+        source_video, dub_track_path, output_path, keep_original_audio=keep_original_audio
+    )
 
     shutil.rmtree(work_dir, ignore_errors=True)
     return output_path

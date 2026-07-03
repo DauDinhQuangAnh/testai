@@ -1,5 +1,5 @@
-"""Test build_dub_track - dung soundfile/numpy tao clip gia, khong can model
-TTS/ffmpeg that.
+"""Test build_dub_track + _build_mux_command - dung soundfile/numpy tao clip
+gia va kiem tra lenh ffmpeg duoc dung dung, khong can model TTS/ffmpeg that.
 """
 
 from pathlib import Path
@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from subtitle_pipeline.infrastructure.audio_mux import build_dub_track
+from subtitle_pipeline.infrastructure.audio_mux import _build_mux_command, build_dub_track
 
 
 def test_clips_placed_at_correct_offset(tmp_path: Path):
@@ -50,3 +50,27 @@ def test_clip_beyond_total_duration_is_dropped(tmp_path: Path):
 
     track, _ = sf.read(output_path, dtype="float32")
     assert np.allclose(track, 0.0)
+
+
+def test_mux_command_replace_mode_maps_dub_audio_only():
+    cmd = _build_mux_command(
+        Path("in.mp4"), Path("dub.wav"), Path("out.mp4"),
+        keep_original_audio=False, original_volume=0.3,
+    )
+
+    assert "-filter_complex" not in cmd
+    assert cmd[cmd.index("-map") + 1] == "0:v:0"
+    assert "1:a:0" in cmd
+
+
+def test_mux_command_keep_mode_mixes_with_reduced_original():
+    cmd = _build_mux_command(
+        Path("in.mp4"), Path("dub.wav"), Path("out.mp4"),
+        keep_original_audio=True, original_volume=0.3,
+    )
+
+    filter_arg = cmd[cmd.index("-filter_complex") + 1]
+    assert "volume=0.3" in filter_arg
+    assert "amix=inputs=2" in filter_arg
+    assert "normalize=0" in filter_arg
+    assert "[aout]" in cmd  # map audio da tron, khong phai track goc

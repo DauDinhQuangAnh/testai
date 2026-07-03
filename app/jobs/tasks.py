@@ -18,7 +18,10 @@ from subtitle_pipeline.export.formats import FORMAT_WRITERS
 
 @celery_app.task(name="app.jobs.tasks.process_video_job")
 def process_video_job(
-    job_id: str, target_language: str | None = None, voice: str | None = None
+    job_id: str,
+    target_language: str | None = None,
+    voice: str | None = None,
+    keep_original_audio: bool = False,
 ) -> None:
     """Chay pipeline chinh (transcribe). Neu co `target_language`, chay tiep
     LUON trong cung 1 job: dich -> long tieng -> mux video - nguoi dung chi
@@ -26,7 +29,8 @@ def process_video_job(
     HANDOFF.md Phase 5b, quyet dinh gop flow 2026-07-03). `job.stage` duoc cap
     nhat xuyen suot ca 2 giai doan de Dashboard hien tien do dung.
     `voice`: ten giong Edge TTS (xem tts_edge.VOICE_OPTIONS), None = giong
-    mac dinh cua ngon ngu.
+    mac dinh cua ngon ngu. `keep_original_audio`: True = giu tieng goc giam
+    70% va de tieng dich len tren (voice-over), False = thay hoan toan.
     """
     repo = JobRepository()
     job = repo.get(job_id)
@@ -71,6 +75,7 @@ def process_video_job(
                     out_dir=out_dir,
                     stem=stem,
                     voice=voice,
+                    keep_original_audio=keep_original_audio,
                 )
             except Exception as exc:
                 # KHONG lam FAILED ca job - transcribe da thanh cong, phu de
@@ -148,7 +153,12 @@ def _load_or_translate_segments(
 
 
 @celery_app.task(name="app.jobs.tasks.dub_job")
-def dub_job(job_id: str, target_language: str, voice: str | None = None) -> None:
+def dub_job(
+    job_id: str,
+    target_language: str,
+    voice: str | None = None,
+    keep_original_audio: bool = False,
+) -> None:
     repo = JobRepository()
     job = repo.get(job_id)
     if job is None:
@@ -171,4 +181,5 @@ def dub_job(job_id: str, target_language: str, voice: str | None = None) -> None
         out_dir=out_dir,
         stem=stem,
         voice=voice,
+        keep_original_audio=keep_original_audio,
     )
