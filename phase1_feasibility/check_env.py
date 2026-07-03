@@ -47,7 +47,15 @@ def check_torch_cuda():
 
 
 def check_packages():
-    packages = ["faster_whisper", "whisperx", "pyannote.audio", "df"]
+    packages = [
+        "faster_whisper",
+        "whisperx",
+        "pyannote.audio",
+        "df",
+        "transformers",
+        "edge_tts",
+        "soundfile",
+    ]
     for pkg in packages:
         try:
             __import__(pkg)

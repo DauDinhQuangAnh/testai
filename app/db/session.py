@@ -8,13 +8,18 @@ khong dung DEFAULT_DATABASE_URL/Postgres that).
 
 import os
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Base
 
+load_dotenv()
+
+# Port 15432 (khong phai 5432 mac dinh) de khop docker-compose.yml - may dev co
+# san Postgres native chiem 5432 (xem HANDOFF.md nhat ky 2026-07-03 lan 7).
 DEFAULT_DATABASE_URL = (
-    "postgresql+psycopg2://subtitle_studio:subtitle_studio@localhost:5432/subtitle_studio"
+    "postgresql+psycopg2://subtitle_studio:subtitle_studio@localhost:15432/subtitle_studio"
 )
 
 

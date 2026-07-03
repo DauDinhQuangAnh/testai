@@ -37,8 +37,8 @@ Checklist gop tu cac phase, de bat dau tu 1 may Windows 11 sach:
      `pyannote/speaker-diarization-3.1` va `pyannote/segmentation-3.0`
      (bam "Agree" tren trang model), roi tao token tai
      https://huggingface.co/settings/tokens
-   - `SESSION_SECRET_KEY`: chay `python -c "import secrets; print(secrets.token_hex(32))"`
    - Cac bien S3 de trong cung duoc (chi can khi test Phase 8 voi S3 that).
+   - (SESSION_SECRET_KEY da bi xoa cung voi Auth 2026-07-03 - khong con can.)
 7. **Postgres + Redis:** `docker compose up -d`. Kiem tra: `docker ps` thay
    2 container.
 8. **Pre-commit hook (1 lan):** `pre-commit install`.
@@ -53,13 +53,14 @@ test dich) - can mang on dinh va o dia trong.
 
 ## 1. Muc tieu san pham
 
-Website AI tu dong tao/chinh sua phu de tu video/audio (kieu CapCut AI Subtitle,
-Veed.io, Descript, WhisperX), tu trien khai toan bo pipeline AI ma nguon mo,
-huong toi SaaS thuong mai that.
+**Tool CA NHAN** (khong con huong toi SaaS thuong mai - quyet dinh 2026-07-03,
+xem muc 7) tu dong tao/chinh sua phu de + long tieng tu video/audio, tu trien
+khai toan bo pipeline AI ma nguon mo.
 
-Pipeline: FFmpeg tach audio -> DeepFilterNet3 khu on -> Silero VAD -> Faster-Whisper
-large-v3 (STT) -> WhisperX (align) -> pyannote (diarization) -> chia cau/toi uu
-subtitle -> dich da ngon ngu -> export SRT/VTT/ASS/TXT/JSON.
+Pipeline: FFmpeg tach audio -> DeepFilterNet3 khu on -> Faster-Whisper (STT,
+tich hop san Silero VAD) -> WhisperX (align) -> pyannote (diarization) -> toi uu
+subtitle -> dich da ngon ngu (NLLB) -> long tieng (edge-tts) -> export
+SRT/VTT/ASS/TXT/JSON + video da long tieng.
 
 ## 2. Quyet dinh kien truc da chot
 
@@ -107,8 +108,9 @@ subtitle -> dich da ngon ngu -> export SRT/VTT/ASS/TXT/JSON.
 3. Streamlit App - Upload + Job Dashboard (code xong, **CHUA chay tren may that**)
 4. Subtitle Editor (`st.data_editor` - xem "Quyet dinh moi") (code xong, **CHUA chay**)
 5. Da ngon ngu + toi uu cau subtitle (code xong, **CHUA chay, rui ro cao nhat**)
-5b. Long tieng (Dubbing/TTS) - MMS-TTS + ghep audio vao video, xem muc 6i
-    (code xong 2026-07-03, **CHUA chay, rui ro cao nhat cua toan bo du an**)
+5b. Long tieng (Dubbing/TTS) - edge-tts (da thay MMS-TTS vi chat luong giong,
+    xem muc 6i) + ghep audio vao video (da chay duoc tren may that, dang tinh
+    chinh chat luong dong bo)
 6. Auth/User Management - **DA XOA HOAN TOAN (2026-07-03)**, du an la tool
    ca nhan, khong con da nguoi dung, xem "Quyet dinh moi"
 7. Goi cuoc + gioi han usage - **DA XOA HOAN TOAN (2026-07-03)** cung luc voi
@@ -916,3 +918,22 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   - **Chua kiem chung tren job that** (can nguoi dung xoa job loi cu, upload
     lai video mau, xac nhan `.vi.json` moi khong con doan tieng Anh nao va
     cau dich muot hon).
+- 2026-07-03 (lan 10, Claude Code ra soat cheo sau cac thay doi cua Codex):
+  Dong bo lai tai lieu bi lech sau khi du an chuyen huong tool ca nhan +
+  dubbing: README.md (bo "SaaS", mo ta pipeline moi co long tieng), HANDOFF
+  muc 0 (bo buoc dien SESSION_SECRET_KEY da xoa), muc 1 (tool ca nhan +
+  pipeline co TTS), roadmap 5b (edge-tts thay MMS-TTS). Sua 2 van de code
+  that:
+  - **Dong van de mo "load_dotenv() khong duoc goi trong app/" (nhat ky lan
+    7):** them `load_dotenv()` vao `app/db/session.py`, `app/jobs/celery_app.py`,
+    `app/config.py` - `.env` gio co tac dung that voi Streamlit/Celery ma
+    khong can shell tu export bien.
+  - **`DEFAULT_DATABASE_URL` (session.py) van tro port 5432** trong khi
+    docker-compose/.env da chuyen sang 15432 (may dev co Postgres native
+    chiem 5432) - neu .env khong duoc nap thi app am tham ket noi nham
+    Postgres native. Da doi fallback sang 15432 khop docker-compose.
+  - `check_env.py` kiem tra them package moi: transformers, edge_tts,
+    soundfile.
+  LUU Y: cac sua doi nay CHUA duoc chay ruff/pytest (phien nay chay trong
+  sandbox khong co Python) - chay lai `pytest` + `ruff check` tren may dev
+  truoc khi tin tuong.
