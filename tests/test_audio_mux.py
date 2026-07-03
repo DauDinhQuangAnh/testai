@@ -54,8 +54,11 @@ def test_clip_beyond_total_duration_is_dropped(tmp_path: Path):
 
 def test_mux_command_replace_mode_maps_dub_audio_only():
     cmd = _build_mux_command(
-        Path("in.mp4"), Path("dub.wav"), Path("out.mp4"),
-        keep_original_audio=False, original_volume=0.3,
+        Path("in.mp4"),
+        Path("dub.wav"),
+        Path("out.mp4"),
+        keep_original_audio=False,
+        original_volume=0.3,
     )
 
     assert "-filter_complex" not in cmd
@@ -65,8 +68,11 @@ def test_mux_command_replace_mode_maps_dub_audio_only():
 
 def test_mux_command_keep_mode_mixes_with_reduced_original():
     cmd = _build_mux_command(
-        Path("in.mp4"), Path("dub.wav"), Path("out.mp4"),
-        keep_original_audio=True, original_volume=0.3,
+        Path("in.mp4"),
+        Path("dub.wav"),
+        Path("out.mp4"),
+        keep_original_audio=True,
+        original_volume=0.3,
     )
 
     filter_arg = cmd[cmd.index("-filter_complex") + 1]

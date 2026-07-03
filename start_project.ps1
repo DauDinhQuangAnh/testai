@@ -24,10 +24,21 @@ function Load-EnvFile($Path) {
     }
 }
 
+function Invoke-NativeQuiet($Command) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+
+    try {
+        & $Command 1>$null 2>$null
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
 function Wait-DockerReady {
     for ($i = 0; $i -lt 40; $i++) {
-        docker info *> $null
-        if ($LASTEXITCODE -eq 0) {
+        if ((Invoke-NativeQuiet { docker info }) -eq 0) {
             return
         }
         Start-Sleep -Seconds 3
@@ -36,8 +47,7 @@ function Wait-DockerReady {
 }
 
 function Start-DockerDesktopIfNeeded {
-    docker info *> $null
-    if ($LASTEXITCODE -eq 0) {
+    if ((Invoke-NativeQuiet { docker info }) -eq 0) {
         return
     }
 
@@ -78,8 +88,7 @@ function Ensure-Postgres {
     }
 
     for ($i = 0; $i -lt 30; $i++) {
-        docker exec testai-postgres-15432 pg_isready -U subtitle_studio -d subtitle_studio *> $null
-        if ($LASTEXITCODE -eq 0) {
+        if ((Invoke-NativeQuiet { docker exec testai-postgres-15432 pg_isready -U subtitle_studio -d subtitle_studio }) -eq 0) {
             return
         }
         Start-Sleep -Seconds 2
@@ -131,7 +140,7 @@ Start-Sleep -Seconds 1
 Write-Step "Starting infrastructure"
 Start-DockerDesktopIfNeeded
 try {
-    docker compose stop postgres *> $null
+    Invoke-NativeQuiet { docker compose stop postgres } | Out-Null
 } catch {
     Write-Step "Compose Postgres stop skipped."
 }

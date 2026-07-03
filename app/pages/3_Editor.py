@@ -55,9 +55,7 @@ if not json_path.exists():
 with open(json_path, encoding="utf-8") as f:
     raw_segments = json.load(f)
 
-tab_edit, tab_translate, tab_dub = st.tabs(
-    ["Chỉnh sửa phụ đề", "Dịch phụ đề", "Lồng tiếng lại"]
-)
+tab_edit, tab_translate, tab_dub = st.tabs(["Chỉnh sửa phụ đề", "Dịch phụ đề", "Lồng tiếng lại"])
 
 with tab_edit:
     col_video, col_editor = st.columns([2, 3])
@@ -119,7 +117,9 @@ with tab_dub:
     st.caption(
         "Upload đã tự lồng tiếng theo lựa chọn lúc tạo job. Dùng tab này để làm "
         "lại với ngôn ngữ/giọng/chế độ khác - hệ thống tự dịch nếu chưa có bản "
-        "dịch. Giọng đọc là giọng chuẩn, chưa hỗ trợ clone giọng gốc."
+        "dịch. Giọng đọc là giọng chuẩn, chưa hỗ trợ clone giọng gốc. Nếu video "
+        "có nhiều người nói, giọng chọn bên dưới áp dụng cho người nói đầu "
+        "tiên - các người nói khác tự động nhận giọng khác nhau."
     )
     col_lang, col_voice = st.columns(2)
     dub_target_language = col_lang.selectbox(

@@ -495,8 +495,9 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
 - `requirements.txt` - them `edge-tts>=6.1.9`.
 
 **Han che da biet (chua giai quyet trong ban nay):**
-- Khong co voice cloning - toan bo cau trong 1 ngon ngu dung chung 1 giong doc
-  trung tinh (dung theo yeu cau nguoi dung cho v1).
+- Khong co voice cloning - moi nguoi noi duoc gan 1 giong CO SAN khac nhau
+  (xem quyet dinh 2026-07-03 lan 10 - `_build_speaker_voice_map` trong
+  `dub.py`), khong phai giong that cua nguoi noi goc.
 - Dong bo audio-video chi o muc "khop khung thoi gian [start, end]" bang
   time-stretch (`atempo`), KHONG phai lip-sync that (khong co model dong bo
   mieng).
@@ -1014,3 +1015,37 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   dau; comment/docstring/tai lieu noi bo (HANDOFF.md, docs/) van giu khong
   dau. LUU Y: nhan giong doc trong VOICE_OPTIONS la KEY cua dict - doi nhan
   khong anh huong logic (test chi assert theo voice ID/values), da ra soat.
+- 2026-07-03 (lan 10): **Them tinh nang gan giong doc rieng cho tung nguoi
+  noi khi long tieng** (nguoi dung yeu cau, danh muc "1" trong 4 muc can
+  nang cap duoc de xuat). Truoc do `dub_and_export()` dung CHUNG 1 giong cho
+  ca video bat ke bao nhieu nguoi noi (`SubtitleSegment.speaker` tu
+  diarization bi bo qua hoan toan o buoc long tieng). Da sua
+  `subtitle_pipeline/application/dub.py`:
+  - Ham thuan moi `_build_speaker_voice_map(segments, language, voice)` -
+    nguoi noi xuat hien DAU TIEN dung dung `voice` nguoi dung chon (giu
+    dung ky vong UI hien tai), cac nguoi noi tiep theo lan luot nhan 1
+    giong KHAC trong `VOICE_OPTIONS[language]`, xoay vong neu nhieu nguoi
+    noi hon so giong co san. Video khong co diarization (`speaker=None` het)
+    van dung 1 giong duy nhat - khong doi hanh vi cu.
+  - `dub_and_export()` doi tu 1 `EdgeTTSSynthesizer` duy nhat (`with ... as
+    tts`) sang dung `contextlib.ExitStack` + dict cache 1 synthesizer/giong -
+    tao moi khi gap giong chua dung, tai su dung khi gap lai. Vi
+    `EdgeTTSSynthesizer.__enter__/__exit__` hien khong lam gi (khong co GPU
+    state that), doi nay an toan; ExitStack giup neu sau nay doi sang TTS
+    backend co state that (vd. VieNeu-TTS, xem tts_edge.py) van dong dung
+    properly.
+  - `sample_rate` gio lay truc tiep tu hang so `OUTPUT_SAMPLE_RATE` trong
+    `tts_edge.py` thay vi doc tu 1 instance `tts.sample_rate` - tranh loi
+    edge case segments rong (truoc day set sau vong lap trong 1 `with` duy
+    nhat, gio co nhieu synthesizer nen khong con 1 diem "sau vong lap" ro
+    rang).
+  - Them help text o `1_Upload.py`/`3_Editor.py` giai thich giong chon la
+    cho "nguoi noi dau tien", cac nguoi khac tu dong nhan giong khac.
+  - Test moi trong `tests/test_dub.py`: 5 test cho
+    `_build_speaker_voice_map` (don nguoi noi, nhieu nguoi noi, tai su dung
+    khi lap lai, xoay vong khi vuot so giong co san, dung `default_voice()`
+    khi khong chon) + 1 test tich hop xac nhan `dub_and_export` tao dung so
+    synthesizer/giong. **55/55 test pass, ruff sach.**
+  - **Chua kiem chung tren video that nhieu nguoi noi** (can video co it
+    nhat 2 speaker qua diarization, tuc can `HF_TOKEN` hop le va video co
+    doi thoai that).

@@ -70,7 +70,15 @@ if dubbing_enabled:
         index=SUPPORTED_LANGUAGES.index("vi") if "vi" in SUPPORTED_LANGUAGES else 0,
     )
     # Danh sach giong doi theo ngon ngu (giong ban dia nam/nu + multilingual).
-    voice_label = col_voice.selectbox("Giọng đọc", list(VOICE_OPTIONS[target_language].keys()))
+    voice_label = col_voice.selectbox(
+        "Giọng đọc",
+        list(VOICE_OPTIONS[target_language].keys()),
+        help=(
+            "Áp dụng cho người nói đầu tiên. Nếu video có nhiều người nói "
+            "(nhận diện qua HF_TOKEN), hệ thống tự gán thêm giọng khác nhau "
+            "cho từng người, không cần chọn thủ công."
+        ),
+    )
     voice = VOICE_OPTIONS[target_language][voice_label]
 
     AUDIO_MODE_REPLACE = "Xóa tiếng gốc (chỉ còn tiếng dịch)"

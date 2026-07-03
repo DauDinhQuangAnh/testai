@@ -88,6 +88,7 @@ def default_voice(language: str) -> str:
         raise ValueError(f"Ngôn ngữ TTS chưa hỗ trợ: {language}")
     return next(iter(VOICE_OPTIONS[language].values()))
 
+
 # Chuan hoa 1 sample rate co dinh cho moi clip xuat ra (ep bang ffmpeg khi
 # chuyen mp3 -> wav ben duoi) de build_dub_track khong can doan/resample.
 OUTPUT_SAMPLE_RATE = 24000
