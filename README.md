@@ -11,11 +11,27 @@ thai/tien do/quyet dinh kien truc duy nhat va moi nhat cua du an (dung chung giu
 Claude Code va Codex). Boi canh/ly do dang sau cac quyet dinh nam o
 [docs/memory/](docs/memory/README.md).
 
-## Chay dev (4 tien trinh)
+## Chay dev
 
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start_project.ps1
 ```
+
+Script nay khoi dong Docker Compose (Postgres + Redis), Celery worker, FastAPI
+backend va React/Vite frontend. Sau khi chay xong mo: http://localhost:5173
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\stop_project.ps1
+```
+
+Lenh stop tat cac tien trinh dev cua du an, dung Docker Compose services va xoa
+log `*.log` o root.
+
+## Chay dev thu cong (4 tien trinh)
+
+```powershell
 docker compose up -d
-python -m celery -A app.jobs.celery_app worker --loglevel=info
-python -m uvicorn backend.main:app --port 8000 --reload
-cd frontend && npm run dev   # http://localhost:5173
+python -m celery -A app.jobs.celery_app worker --loglevel=info --pool=solo
+python -m uvicorn backend.main:app --host localhost --port 8000 --reload
+cd frontend; npm run dev -- --host localhost --port 5173
 ```

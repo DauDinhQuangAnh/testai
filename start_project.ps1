@@ -60,35 +60,74 @@ function Start-DockerDesktopIfNeeded {
     Wait-DockerReady
 }
 
-function Stop-AppPythonProcesses {
-    $processes = Get-CimInstance Win32_Process | Where-Object {
-        $_.Name -like "python*" -and (
-            $_.CommandLine -like "*streamlit*app/Home.py*" -or
-            $_.CommandLine -like "*celery*app.jobs.celery_app*"
-        )
+function Stop-DevProcesses {
+    $allProcesses = @(Get-CimInstance Win32_Process)
+    $patterns = @(
+        "celery -A app.jobs.celery_app",
+        "uvicorn backend.main:app",
+        "streamlit run app/Home.py",
+        "frontend\\node_modules",
+        "frontend/node_modules",
+        "frontend\\node_modules\\vite",
+        "frontend/node_modules/vite",
+        "npm-cli.js run dev",
+        "vite --host localhost --port 5173"
+    )
+
+    $targetIds = @{}
+    $targets = $allProcesses | Where-Object {
+        $commandLine = $_.CommandLine
+        if (-not $commandLine) {
+            return $false
+        }
+        if ($_.Name -like "python*" -and $commandLine -like "*multiprocessing.spawn*spawn_main*") {
+            return $true
+        }
+        if (
+            $commandLine -like "*$Root*" -and
+            $_.Name -in @("python.exe", "pythonw.exe", "python3.12.exe", "node.exe", "cmd.exe", "esbuild.exe")
+        ) {
+            return $true
+        }
+        foreach ($pattern in $patterns) {
+            if ($commandLine -like "*$pattern*") {
+                return $true
+            }
+        }
+        return $false
     }
 
-    foreach ($process in $processes) {
-        Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+    foreach ($process in $targets) {
+        $targetIds[$process.ProcessId] = $true
+    }
+
+    do {
+        $changed = $false
+        foreach ($process in $allProcesses) {
+            if ($targetIds.ContainsKey($process.ParentProcessId) -and -not $targetIds.ContainsKey($process.ProcessId)) {
+                $targetIds[$process.ProcessId] = $true
+                $changed = $true
+            }
+        }
+    } while ($changed)
+
+    foreach ($processId in $targetIds.Keys) {
+        Write-Step "Stopping stale PID $processId"
+        Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
 }
 
-function Ensure-Postgres {
-    $container = docker ps -a --filter "name=^/testai-postgres-15432$" --format "{{.Names}}"
-    if (-not $container) {
-        Write-Step "Creating Postgres on localhost:15432"
-        docker run -d --name testai-postgres-15432 `
-            -e POSTGRES_DB=subtitle_studio `
-            -e POSTGRES_USER=subtitle_studio `
-            -e POSTGRES_PASSWORD=subtitle_studio `
-            -p 15432:5432 postgres:16 | Out-Null
-    } else {
-        Write-Step "Starting Postgres on localhost:15432"
-        docker start testai-postgres-15432 | Out-Null
+function Stop-LegacyPostgresContainer {
+    $legacy = docker ps --filter "name=^/testai-postgres-15432$" --format "{{.Names}}"
+    if ($legacy) {
+        Write-Step "Stopping legacy Postgres container testai-postgres-15432"
+        Invoke-NativeQuiet { docker stop testai-postgres-15432 } | Out-Null
     }
+}
 
-    for ($i = 0; $i -lt 30; $i++) {
-        if ((Invoke-NativeQuiet { docker exec testai-postgres-15432 pg_isready -U subtitle_studio -d subtitle_studio }) -eq 0) {
+function Wait-PostgresReady {
+    for ($i = 0; $i -lt 40; $i++) {
+        if ((Invoke-NativeQuiet { docker compose exec -T postgres pg_isready -U subtitle_studio -d subtitle_studio }) -eq 0) {
             return
         }
         Start-Sleep -Seconds 2
@@ -96,9 +135,14 @@ function Ensure-Postgres {
     throw "Postgres did not become ready."
 }
 
-function Ensure-Redis {
-    Write-Step "Starting Redis"
-    docker compose up -d redis | Out-Null
+function Wait-RedisReady {
+    for ($i = 0; $i -lt 40; $i++) {
+        if ((Invoke-NativeQuiet { docker compose exec -T redis redis-cli ping }) -eq 0) {
+            return
+        }
+        Start-Sleep -Seconds 2
+    }
+    throw "Redis did not become ready."
 }
 
 function Find-FfmpegBin {
@@ -118,9 +162,42 @@ function Find-FfmpegBin {
     throw "ffmpeg.exe was not found. Install FFmpeg or update PATH."
 }
 
+function Wait-HttpReady($Url, $Name) {
+    for ($i = 0; $i -lt 40; $i++) {
+        try {
+            $response = Invoke-WebRequest -UseBasicParsing $Url -TimeoutSec 3
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+                return
+            }
+        } catch {
+            Start-Sleep -Seconds 2
+        }
+    }
+    throw "$Name did not become ready at $Url."
+}
+
+function Start-LoggedProcess($Name, $FilePath, $ArgumentList, $WorkingDirectory) {
+    $stdout = Join-Path $Root "$Name.out.log"
+    $stderr = Join-Path $Root "$Name.err.log"
+
+    Write-Step "Starting $Name"
+    return Start-Process -FilePath $FilePath `
+        -ArgumentList $ArgumentList `
+        -WorkingDirectory $WorkingDirectory `
+        -RedirectStandardOutput $stdout `
+        -RedirectStandardError $stderr `
+        -WindowStyle Hidden `
+        -PassThru
+}
+
 $python = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $python)) {
     throw "Missing virtualenv Python at $python. Create .venv and install requirements first."
+}
+
+$npm = (Get-Command "npm.cmd" -ErrorAction SilentlyContinue).Source
+if (-not $npm) {
+    throw "npm.cmd was not found. Install Node.js before starting the React frontend."
 }
 
 Write-Step "Loading .env"
@@ -133,49 +210,55 @@ $ctranslate2Lib = Join-Path $Root ".venv\Lib\site-packages\ctranslate2"
 $env:PATH = "$ffmpegBin;$torchLib;$ctranslate2Lib;$env:PATH"
 $env:PYTHONIOENCODING = "utf-8"
 
-Write-Step "Stopping stale app processes"
-Stop-AppPythonProcesses
+Write-Step "Stopping stale dev processes"
+Stop-DevProcesses
 Start-Sleep -Seconds 1
 
 Write-Step "Starting infrastructure"
 Start-DockerDesktopIfNeeded
-try {
-    Invoke-NativeQuiet { docker compose stop postgres } | Out-Null
-} catch {
-    Write-Step "Compose Postgres stop skipped."
+Stop-LegacyPostgresContainer
+docker compose up -d | Out-Null
+Wait-PostgresReady
+Wait-RedisReady
+
+Write-Step "Preparing frontend dependencies"
+$frontendDir = Join-Path $Root "frontend"
+if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
+    & $npm install --prefix $frontendDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "npm install failed."
+    }
 }
-Ensure-Postgres
-Ensure-Redis
 
 Write-Step "Clearing old logs"
 Remove-Item (Join-Path $Root "*.log") -Force -ErrorAction SilentlyContinue
 
-$streamlitOut = Join-Path $Root "streamlit.out.log"
-$streamlitErr = Join-Path $Root "streamlit.err.log"
-$celeryOut = Join-Path $Root "celery.out.log"
-$celeryErr = Join-Path $Root "celery.err.log"
-
-Write-Step "Starting Streamlit"
-$streamlit = Start-Process -FilePath $python `
-    -ArgumentList @("-m", "streamlit", "run", "app/Home.py", "--server.port", "8501", "--server.address", "localhost") `
-    -WorkingDirectory $Root `
-    -RedirectStandardOutput $streamlitOut `
-    -RedirectStandardError $streamlitErr `
-    -WindowStyle Hidden `
-    -PassThru
-
-Write-Step "Starting Celery worker"
-$celery = Start-Process -FilePath $python `
+$celery = Start-LoggedProcess `
+    -Name "celery" `
+    -FilePath $python `
     -ArgumentList @("-m", "celery", "-A", "app.jobs.celery_app", "worker", "--loglevel=info", "--pool=solo") `
-    -WorkingDirectory $Root `
-    -RedirectStandardOutput $celeryOut `
-    -RedirectStandardError $celeryErr `
-    -WindowStyle Hidden `
-    -PassThru
+    -WorkingDirectory $Root
+
+$backend = Start-LoggedProcess `
+    -Name "backend" `
+    -FilePath $python `
+    -ArgumentList @("-m", "uvicorn", "backend.main:app", "--host", "localhost", "--port", "8000", "--reload") `
+    -WorkingDirectory $Root
+
+$frontend = Start-LoggedProcess `
+    -Name "frontend" `
+    -FilePath $npm `
+    -ArgumentList @("run", "dev", "--", "--host", "localhost", "--port", "5173") `
+    -WorkingDirectory $frontendDir
+
+Wait-HttpReady "http://localhost:8000/api/health" "FastAPI backend"
+Wait-HttpReady "http://localhost:5173" "Vite frontend"
 
 Write-Host ""
-Write-Host "AI Subtitle Studio is starting."
-Write-Host "Streamlit: http://localhost:8501"
-Write-Host "Streamlit PID: $($streamlit.Id)"
+Write-Host "AI Subtitle Studio is running."
+Write-Host "Frontend: http://localhost:5173"
+Write-Host "Backend API: http://localhost:8000/api/health"
 Write-Host "Celery PID: $($celery.Id)"
-Write-Host "Logs: streamlit.*.log, celery.*.log"
+Write-Host "Backend PID: $($backend.Id)"
+Write-Host "Frontend PID: $($frontend.Id)"
+Write-Host "Logs: backend.*.log, celery.*.log, frontend.*.log"
