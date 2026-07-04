@@ -34,6 +34,12 @@ edge-tts>=6.1.9
 # subtitle_pipeline/infrastructure/downloader_ytdlp.py
 yt-dlp>=2024.12.13
 
+# Tu dong lay cookie tuoi cho YouTube/Douyin bang trinh duyet an (thay the
+# viec tu export cookie qua extension) - xem
+# subtitle_pipeline/infrastructure/cookie_refresh.py. Sau khi cai can chay
+# THEM 1 lan: `python -m playwright install chromium`.
+playwright>=1.47.0
+
 # Backend FastAPI cho UI React (backend/ + frontend/, quyet dinh 2026-07-03
 # chuyen khoi Streamlit - xem HANDOFF.md)
 fastapi>=0.115.0

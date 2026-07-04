@@ -38,6 +38,7 @@ def client(tmp_path, monkeypatch):
 
     test_client = TestClient(app)
     test_client.enqueued = enqueued
+    test_client.storage_dir = tmp_path / "storage"
     yield test_client
     backend_db.set_session_factory(None)
 
@@ -174,6 +175,44 @@ def test_admin_lists_users_with_job_count(client):
     assert users[0]["job_count"] == 1
 
 
+def test_refresh_cookies_requires_admin(client):
+    token = _register(client)["token"]
+
+    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(token))
+
+    assert res.status_code == 403
+
+
+def test_refresh_cookies_calls_playwright_helper(client, monkeypatch, tmp_path):
+    admin_token = client.post(
+        "/api/auth/login", json={"email": "admin@test", "password": "admin-secret"}
+    ).json()["token"]
+    cookies_path = tmp_path / "cookies.txt"
+    monkeypatch.setenv("YTDLP_COOKIES_FILE", str(cookies_path))
+    monkeypatch.setattr("backend.routers.admin.refresh_cookies", lambda path: 7)
+
+    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(admin_token))
+
+    assert res.status_code == 200
+    assert res.json() == {"cookie_count": 7, "path": str(cookies_path)}
+
+
+def test_refresh_cookies_reports_error_as_502(client, monkeypatch):
+    admin_token = client.post(
+        "/api/auth/login", json={"email": "admin@test", "password": "admin-secret"}
+    ).json()["token"]
+
+    def _boom(path):
+        raise RuntimeError("chua chay --setup lan nao")
+
+    monkeypatch.setattr("backend.routers.admin.refresh_cookies", _boom)
+
+    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(admin_token))
+
+    assert res.status_code == 502
+    assert "chua chay --setup" in res.json()["detail"]
+
+
 def test_delete_job_removes_record(client):
     token = _register(client)["token"]
     job = _create_upload_job(client, token)
@@ -205,3 +244,22 @@ def test_download_accepts_token_query_param(client, tmp_path):
     # Token qua query param (cho <video>/<a download> khong gui duoc header).
     res = client.get(f"/api/jobs/{job['id']}/files?token={token}")
     assert res.status_code == 200
+
+
+def test_job_files_only_classifies_real_dubbed_videos_as_videos(client):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+    stem = "video"
+    output_dir = client.storage_dir / job["id"] / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / f"{stem}.vi.dubbed.mp4").write_bytes(b"video")
+    (output_dir / f"{stem}.vi.ass").write_text("subtitle", encoding="utf-8")
+    (output_dir / f"{stem}.vi.json").write_text("[]", encoding="utf-8")
+    (output_dir / f"{stem}.vi.srt").write_text("subtitle", encoding="utf-8")
+
+    res = client.get(f"/api/jobs/{job['id']}/files", headers=_auth_headers(token))
+
+    assert res.status_code == 200
+    body = res.json()
+    assert [video["name"] for video in body["videos"]] == [f"{stem}.vi.dubbed.mp4"]
+    assert body["subtitles"]

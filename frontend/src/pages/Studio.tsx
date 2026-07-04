@@ -131,7 +131,7 @@ export default function Studio() {
                 <StageProgress progress={job.progress} label={job.stage_label} />
               )}
               {job.error_message && (
-                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                <p className="mt-2 max-h-20 overflow-hidden rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
                   {job.error_message}
                 </p>
               )}

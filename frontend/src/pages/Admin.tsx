@@ -1,13 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import NavBar from "../components/NavBar";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { STATUS_LABELS } from "../lib/constants";
 import type { AdminUserOut, JobOut } from "../lib/types";
 
 export default function Admin() {
   const queryClient = useQueryClient();
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+
+  const refreshCookies = useMutation({
+    mutationFn: () => api.post<{ cookie_count: number; path: string }>("/api/admin/refresh-cookies", {}),
+    onSuccess: (result) =>
+      setRefreshMessage(`Đã lấy ${result.cookie_count} cookie, lưu vào ${result.path}.`),
+    onError: (err) =>
+      setRefreshMessage(err instanceof ApiError ? err.message : "Làm mới cookie thất bại."),
+  });
 
   const { data: users = [] } = useQuery({
     queryKey: ["admin-users"],
@@ -34,6 +44,26 @@ export default function Admin() {
       <NavBar />
       <main className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="mb-6 text-2xl font-bold">Quản trị hệ thống</h1>
+
+        <section className="card mb-8">
+          <h2 className="mb-2 text-lg font-semibold">Cookie tải video (YouTube/Douyin)</h2>
+          <p className="mb-3 text-sm text-ink-soft">
+            Lấy lại cookie mới từ trình duyệt đã đăng nhập sẵn (cần chạy{" "}
+            <code className="rounded bg-cream px-1">
+              python -m subtitle_pipeline.infrastructure.cookie_refresh --setup
+            </code>{" "}
+            một lần trên máy chủ trước). Lưu ý: Douyin hiện chưa tải được dù cookie mới, do
+            yt-dlp chưa hỗ trợ đầy đủ (không phải do cookie).
+          </p>
+          <button
+            className="btn-primary"
+            onClick={() => refreshCookies.mutate()}
+            disabled={refreshCookies.isPending}
+          >
+            {refreshCookies.isPending ? "Đang lấy cookie..." : "Làm mới cookie"}
+          </button>
+          {refreshMessage && <p className="mt-3 text-sm">{refreshMessage}</p>}
+        </section>
 
         <section className="card mb-8">
           <h2 className="mb-4 text-lg font-semibold">Người dùng ({users.length})</h2>

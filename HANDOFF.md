@@ -801,6 +801,106 @@ bo job, thu xoa user. Bao loi de sua tiep.
   **Anh huong DB:** day la thay doi schema (bo cot/bang) - `create_all()`
   KHONG tu xoa cot/bang cu, xem canh bao reset DB o muc 8.
 
+## 6l. Tu dong lay cookie YouTube/Douyin bang Playwright (2026-07-05)
+
+**Trang thai:** Code xong, test that (107/107 pytest pass, ruff sach,
+`npm run build` pass). Da smoke-test THAT tren may (Playwright + Chromium
+that, khong gia lap) - xem phat hien quan trong ve Douyin ben duoi.
+
+**Boi canh:** nguoi dung gap loi tai video YouTube/Douyin qua yt-dlp bi chan
+"Sign in to confirm you're not a bot" / "Fresh cookies are needed". Cach cu
+(export cookies.txt qua extension trinh duyet, hoac
+`YTDLP_COOKIES_FROM_BROWSER`) deu bat tien (thao tac tay, hoac loi khoa file
+neu trinh duyet dang mo - da xac nhan tren may nay: Edge/Chrome deu dang mo
+lien tuc). Nguoi dung yeu cau tim cach "manh hon, tien hon".
+
+**Da nghien cuu + xac nhan bang thu nghiem THAT truoc khi code:**
+- Test `--extractor-args "youtube:player_client=android,web,tv"`: tai duoc
+  YouTube KHONG can cookie nhung bi gioi han ~360p (YouTube da ap "SABR
+  streaming" + "n challenge" can JS runtime de mo khoa chat luong cao, yt-dlp
+  bao "JS Challenge Providers: unavailable" dù may co Node.js) - khong dung
+  cach nay, giu chat luong 720p uu tien.
+- Test HTTP request thuong (`requests`) toi douyin.com de tu lay cookie: chi
+  lay duoc 1 cookie (`__ac_nonce`), THIEU cac cookie do JAVASCRIPT tao ra
+  (`ttwid`, `odin_tt`, `msToken`...) - xac nhan can trinh duyet THAT (chay
+  JS) chu khong the gia lap bang HTTP request don thuan.
+- Xem repo tham khao nguoi dung dua (github.com/jiji262/douyin-downloader):
+  xac nhan dung dung Playwright de lay cookie tu dong - dung huong da chon,
+  khong co "meo" nao khac.
+- **PHAT HIEN QUAN TRONG (khien Douyin khong the fix bang cookie):** doc
+  truc tiep source code yt-dlp (`yt_dlp/extractor/tiktok.py`, class
+  `DouyinIE._real_extract`) thay dong comment
+  `# TODO: Run verification challenge code to generate signature cookies`
+  ngay truoc loi "Fresh cookies (not necessarily logged in) are needed".
+  Day la GIOI HAN CUA CHINH YT-DLP (chua code xong buoc giai verification
+  challenge cua Douyin), KHONG PHAI do cookie cu/thieu. Da thu voi 44 cookie
+  that lay tu Playwright (dieu huong den dung URL video, cho 5s, co ca
+  `passport_csrf_token`/`ttwid`/`odin_tt`) - van loi y het. **Ket luan: Douyin
+  se KHONG tai duoc cho toi khi yt-dlp tu code xong phan nay**, bat ke cookie
+  nao. YouTube khong co van de nay (khong TODO tuong tu trong code), nen giai
+  phap Playwright van co gia tri day du cho YouTube.
+
+**Kien truc (`subtitle_pipeline/infrastructure/cookie_refresh.py`):**
+- 2 CHE DO tach rieng vi ly do khac nhau:
+  - `setup_login_session(profile_dir)`: mo Chromium THAT (khong an,
+    `headless=False`) qua `launch_persistent_context` - nguoi dung tu dang
+    nhap YouTube/Douyin 1 LAN trong do (co the giai CAPTCHA neu co), nhan
+    Enter trong terminal de luu profile + dong trinh duyet. CHI chay duoc tu
+    terminal (CLI), KHONG the goi tu backend API vi server khong co man
+    hinh cho nguoi dung tuong tac.
+  - `refresh_cookies(output_path, profile_dir)`: mo LAI CUNG profile o che
+    do AN (`headless=True`) - tai su dung session dang nhap da luu, khong
+    can dang nhap lai, chi ghe qua tung trang de lay cookie MOI (bao gom ca
+    cookie JS tao ra). AN TOAN de goi tu dong/dinh ky hoac qua API.
+- `_cookie_to_netscape_line()` - ham thuan chuyen 1 cookie Playwright (dict)
+  sang dinh dang Netscape ma yt-dlp `--cookies` doc duoc; cookie phien
+  (`expires=-1`) duoc gia han 1 nam thay vi ghi -1 (Netscape/yt-dlp coi gia
+  tri am la het han, se bo qua). Test rieng trong `tests/test_cookie_refresh.py`
+  (khong can Playwright/trinh duyet that).
+- CLI: `python -m subtitle_pipeline.infrastructure.cookie_refresh --setup`
+  (chay 1 lan dau) / `--refresh` (chay lai bat cu khi nao can, doc
+  `YTDLP_COOKIES_FILE` tu env de biet ghi vao dau).
+- **`backend/routers/admin.py`**: them `POST /admin/refresh-cookies`
+  (admin-only, `require_admin`) - goi `refresh_cookies()` qua
+  `asyncio.to_thread` (Playwright sync API se chan/block, khong duoc goi
+  truc tiep trong async route handler). Loi ro rang neu chua chay `--setup`
+  lan nao (browser profile chua ton tai).
+- **`frontend/src/pages/Admin.tsx`**: them nut "Lam moi cookie" + ghi chu ro
+  rang Douyin chua tai duoc du co cookie moi (tranh nguoi dung ky vong sai).
+- Dependency moi: `playwright>=1.47.0` (them vao `requirements.txt`). **CAN
+  CHAY THEM 1 LAN SAU KHI `pip install`:**
+  `python -m playwright install chromium` (tai ~150-300MB browser binary,
+  da xac nhan chay thanh cong tren may nay).
+- `.env.example`: `YTDLP_COOKIES_FILE=cookies.txt` la mac dinh moi (thay cho
+  de trong) - khop voi noi `cookie_refresh.py --refresh` ghi ra.
+  `storage/browser_profile/` (profile luu session dang nhap) nam trong
+  `storage/` da duoc `.gitignore` toan bo tu truoc, khong can them dong moi.
+
+**Ban dau ve deploy VPS (nguoi dung hoi, ghi lai de tham khao sau):**
+Playwright chay tot tren Linux headless (thiet ke cho dung truong hop nay),
+khong kho setup (`playwright install --with-deps chromium`). NHUNG van de
+lon hon la **uy tin IP**: YouTube/Douyin chan IP datacenter/VPS gat hon
+nhieu so voi IP nha rieng, du cookie/Playwright hoan hao van co the bi chan
+thuong xuyen hon - can proxy residential/mobile tra phi de on dinh. Rieng
+pipeline AI (Whisper/WhisperX/pyannote/DeepFilterNet) can GPU CUDA - VPS
+thuong (DigitalOcean, Linode...) khong co GPU, phai thue loai co GPU rieng
+(RunPod, Vast.ai, AWS g4/g5...) dat hon nhieu, hoac chay CPU se cham hon
+10-20 lan. Chua quyet dinh/lam gi cho huong VPS, chi ghi nhan de ban khi
+can deploy that.
+
+**Viec nguoi dung can lam:**
+1. `pip install -r requirements.txt` (them `playwright`).
+2. `python -m playwright install chromium` (1 lan).
+3. `python -m subtitle_pipeline.infrastructure.cookie_refresh --setup` -
+   dang nhap YouTube (va Douyin neu muon, du hien chua tai duoc) trong cua
+   so trinh duyet mo ra, nhan Enter trong terminal khi xong.
+4. Vao trang Admin (dang nhap admin@local...), bam "Lam moi cookie" bat cu
+   khi nao gap loi cookie het han - khong can lam lai buoc 3 tru khi profile
+   bi xoa hoac session dang nhap thuc su het han (hiem, thuong vai thang).
+5. Restart Celery worker sau khi cookies.txt duoc tao/cap nhat lan dau (de
+   chac chan doc dung file moi - thuc ra `YTDLP_COOKIES_FILE` doc lai moi
+   lan tai, khong can restart, nhung restart 1 lan cho chac an toan).
+
 ## 8. Van de dang mo / can quyet dinh
 
 - **Chua co trang "Sua phu de" (Editor) trong UI React** - Streamlit cu co
@@ -1270,3 +1370,18 @@ bo job, thu xoa user. Bao loi de sua tiep.
   docstring `app/jobs/tasks.py`/`repository.py`/`stages.py` (khong con nhac
   Streamlit). README.md them huong dan chay 4 tien trinh (docker compose +
   celery + uvicorn + npm run dev). 91/91 pytest + ruff sach sau khi xoa.
+- 2026-07-05: **Them tu dong lay cookie YouTube/Douyin bang Playwright**
+  (nguoi dung: "tim phuong thuc manh hon tien hon" thay vi export cookie tay
+  qua extension). Xem chi tiet muc 6l. File moi
+  `subtitle_pipeline/infrastructure/cookie_refresh.py` (2 che do:
+  `setup_login_session` mo trinh duyet that dang nhap 1 lan, `refresh_cookies`
+  chay an tai su dung session da luu), endpoint
+  `POST /api/admin/refresh-cookies`, nut "Lam moi cookie" trong trang Admin.
+  Them dependency `playwright`. **Phat hien quan trong qua doc source code
+  yt-dlp**: Douyin hien KHONG THE tai duoc du co cookie moi vi chinh yt-dlp
+  chua code xong buoc "verification challenge" (con la TODO trong code cua
+  ho) - da xac nhan bang thu nghiem that (44 cookie that van loi y het).
+  YouTube khong bi gioi han nay nen giai phap Playwright van huu ich day du.
+  107/107 pytest pass (them `test_cookie_refresh.py` + 3 test backend moi),
+  ruff sach, `npm run build` pass, da chay Playwright+Chromium THAT tren may
+  (khong gia lap) de xac nhan dinh dang cookies.txt sinh ra dung.

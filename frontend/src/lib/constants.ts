@@ -55,4 +55,18 @@ export const STATUS_LABELS: Record<string, string> = {
 
 // Khop app/jobs/stages.py PIPELINE_STAGES (11 buoc) - dung cho progress bar
 // nhieu doan.
-export const TOTAL_STAGES = 11;
+export const PIPELINE_STEPS = [
+  { key: "starting", label: "Khởi động" },
+  { key: "download", label: "Tải video" },
+  { key: "extract_audio", label: "Tách audio" },
+  { key: "denoise", label: "Khử ồn" },
+  { key: "transcribe", label: "Nhận diện lời nói" },
+  { key: "align", label: "Căn timing" },
+  { key: "diarize", label: "Tách người nói" },
+  { key: "merge", label: "Ghép kết quả" },
+  { key: "translate", label: "Dịch" },
+  { key: "dub", label: "Lồng tiếng" },
+  { key: "done", label: "Hoàn thành" },
+];
+
+export const TOTAL_STAGES = PIPELINE_STEPS.length;

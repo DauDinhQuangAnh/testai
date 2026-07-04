@@ -29,6 +29,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 ALLOWED_EXTENSIONS = {"mp4", "mkv", "mov", "wav", "mp3", "m4a"}
 MAX_FILE_SIZE_MB = 500
 _INTERNAL_SUFFIXES = (".source_language.txt",)
+_VIDEO_SUFFIXES = {".mp4", ".mkv", ".mov", ".webm"}
 
 
 def _get_owned_job(job_id: str, user: AuthUser) -> Job:
@@ -163,7 +164,7 @@ def _group_output_files(job: Job) -> JobFilesOut:
     videos = []
     subtitle_files = []
     for f in files:
-        if ".dubbed." in f.name:
+        if ".dubbed." in f.name and f.suffix.lower() in _VIDEO_SUFFIXES:
             lang = f.name.removeprefix(f"{stem}.").split(".")[0]
             videos.append(VideoOut(name=f.name, language=lang, size_bytes=f.stat().st_size))
         else:

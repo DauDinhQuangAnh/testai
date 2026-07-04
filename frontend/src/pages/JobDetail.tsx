@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import NavBar from "../components/NavBar";
@@ -10,7 +9,6 @@ import type { JobFilesOut, JobOut } from "../lib/types";
 
 export default function JobDetail() {
   const { id = "" } = useParams();
-  const [expandedPreview, setExpandedPreview] = useState<string | null>(null);
 
   const { data: job } = useQuery({
     queryKey: ["job", id],
@@ -36,6 +34,11 @@ export default function JobDetail() {
     );
   }
 
+  const resultVideo =
+    files?.videos.length
+      ? [...files.videos].sort((a, b) => b.size_bytes - a.size_bytes)[0]
+      : null;
+
   return (
     <div className="min-h-screen">
       <NavBar />
@@ -49,55 +52,50 @@ export default function JobDetail() {
         </p>
 
         {(job.status === "queued" || job.status === "running") && (
-          <div className="card mb-6">
-            <StageProgress progress={job.progress} label={job.stage_label} />
-          </div>
+          <StageProgress
+            progress={job.progress}
+            label={job.stage_label}
+            stage={job.stage}
+            status={job.status}
+            variant="detail"
+          />
         )}
+
         {job.error_message && (
           <div className="mb-6 rounded-xl bg-amber-50 px-4 py-3 text-amber-800">
             {job.error_message}
           </div>
         )}
 
-        {files?.videos.map((video) => (
-          <div key={video.name} className="card mb-6">
-            <h2 className="mb-3 font-semibold">🎬 Video đã lồng tiếng ({video.language})</h2>
-            <video controls className="w-full rounded-lg bg-black" src={fileUrl(id, video.name)} />
-            <a href={fileUrl(id, video.name)} download className="btn-primary mt-3">
-              Tải video ({(video.size_bytes / 1024 / 1024).toFixed(1)} MB)
-            </a>
-          </div>
-        ))}
-
-        {files?.subtitles.map((group) => (
-          <div key={group.language} className="card mb-6">
-            <h2 className="mb-3 font-semibold">📝 {group.label}</h2>
-            <div className="flex flex-wrap gap-2">
-              {group.files.map((f) => (
-                <a key={f.name} href={fileUrl(id, f.name)} download className="btn-ghost">
-                  {f.format}
-                </a>
-              ))}
+        {job.status === "done" && resultVideo && (
+          <section className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
+            <div className="border-b border-line px-4 py-3">
+              <h2 className="text-base font-semibold text-ink">Clip kết quả</h2>
+              <p className="mt-0.5 text-xs text-ink-soft">
+                Video đã xử lý xong, có thể xem trực tiếp hoặc tải về.
+              </p>
             </div>
-            {group.preview_text && (
-              <div className="mt-3">
-                <button
-                  className="text-sm font-medium text-primary"
-                  onClick={() =>
-                    setExpandedPreview(expandedPreview === group.language ? null : group.language)
-                  }
-                >
-                  {expandedPreview === group.language ? "Ẩn nội dung" : "Xem trước nội dung"}
-                </button>
-                {expandedPreview === group.language && (
-                  <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-cream p-3 text-sm">
-                    {group.preview_text}
-                  </pre>
-                )}
+            <div className="p-4">
+              <video
+                controls
+                className="aspect-video w-full rounded-lg bg-black"
+                src={fileUrl(id, resultVideo.name)}
+              />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="truncate text-sm text-ink-soft" title={resultVideo.name}>
+                  {resultVideo.name}
+                </p>
+                <a href={fileUrl(id, resultVideo.name)} download className="btn-primary shrink-0">
+                  Tải video ({(resultVideo.size_bytes / 1024 / 1024).toFixed(1)} MB)
+                </a>
               </div>
-            )}
-          </div>
-        ))}
+            </div>
+          </section>
+        )}
+
+        {job.status === "done" && files && !resultVideo && (
+          <div className="card text-ink-soft">Chưa tìm thấy clip kết quả.</div>
+        )}
       </main>
     </div>
   );

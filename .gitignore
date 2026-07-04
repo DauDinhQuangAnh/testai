@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .env
+cookies.txt
 
 phase1_feasibility/samples/*
 !phase1_feasibility/samples/.gitkeep

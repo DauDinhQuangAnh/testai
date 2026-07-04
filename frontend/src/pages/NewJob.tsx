@@ -74,6 +74,42 @@ export default function NewJob() {
   const selectedVoice =
     voices.find((v) => v.id === options.dubbing.voice) ?? voices[0] ?? null;
 
+  const resetCurrentStep = () => {
+    const defaults = defaultOptions();
+    const key = STEPS[step].key;
+
+    if (key === "source") {
+      patch({ source: defaults.source });
+      setUseUrl(true);
+      setFile(null);
+      return;
+    }
+    if (key === "voice") {
+      patch({ dubbing: defaults.dubbing });
+      setSampleUrl(null);
+      return;
+    }
+    if (key === "translate") {
+      patch({ translation: defaults.translation });
+      setPresetIndex(0);
+      return;
+    }
+    if (key === "subtitle") {
+      patch({ subtitle: defaults.subtitle });
+      return;
+    }
+    if (key === "audio") {
+      patch({ audio: defaults.audio, output: defaults.output });
+      return;
+    }
+
+    setOptions(defaults);
+    setUseUrl(true);
+    setFile(null);
+    setPresetIndex(0);
+    setSampleUrl(null);
+  };
+
   return (
     <div className="min-h-screen">
       <NavBar />
@@ -128,6 +164,18 @@ export default function NewJob() {
           {/* Step content */}
           <section className="min-w-0 flex-1">
             <div className="card">
+              <div className="mb-5 flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    Bước {step + 1}
+                  </p>
+                  <p className="text-sm text-ink-soft">{STEPS[step].desc}</p>
+                </div>
+                <button type="button" className="btn-ghost self-start" onClick={resetCurrentStep}>
+                  {step === STEPS.length - 1 ? "Đặt lại tất cả" : "Đặt lại bước này"}
+                </button>
+              </div>
+
               {step === 0 && (
                 <div className="space-y-5">
                   <h2 className="text-lg font-semibold">Chọn nguồn video</h2>
