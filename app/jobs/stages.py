@@ -4,11 +4,9 @@ React (frontend/) hien lai qua StageProgress.tsx.
 """
 
 # Thu tu stage khop voi thu tu notify() trong TranscriptionPipeline.run() +
-# cac giai doan download/translate/dub cua process_video_job. Tien do =
-# vi tri/len.
+# cac giai doan translate/dub cua process_video_job. Tien do = vi tri/len.
 PIPELINE_STAGES: list[tuple[str, str]] = [
     ("starting", "Khởi động"),
-    ("download", "Tải video từ URL"),
     ("extract_audio", "Tách audio"),
     ("denoise", "Khử ồn"),
     ("transcribe", "Nhận diện lời nói"),

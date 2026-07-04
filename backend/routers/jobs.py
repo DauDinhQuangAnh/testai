@@ -45,15 +45,11 @@ def _get_owned_job(job_id: str, user: AuthUser) -> Job:
 def _create_job_from_options(
     options: dict, user: AuthUser, upload: UploadFile | None = None
 ) -> Job:
-    source = options.get("source") or {}
     job_id = str(uuid.uuid4())
     job_dir = AppConfig.from_env().storage_dir / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    if source.get("url"):
-        filename = source["url"]
-        input_path = job_dir / "download_pending"  # worker cap nhat sau khi tai
-    elif upload is not None and upload.filename:
+    if upload is not None and upload.filename:
         extension = upload.filename.rsplit(".", 1)[-1].lower()
         if extension not in ALLOWED_EXTENSIONS:
             raise HTTPException(status_code=400, detail=f"Định dạng '.{extension}' không hỗ trợ")
@@ -64,7 +60,7 @@ def _create_job_from_options(
         input_path = job_dir / filename
         input_path.write_bytes(data)
     else:
-        raise HTTPException(status_code=400, detail="Cần file upload hoặc source.url")
+        raise HTTPException(status_code=400, detail="Cần file upload")
 
     (job_dir / "job_config.json").write_text(
         json.dumps(options, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -125,16 +121,12 @@ def rerun_job(job_id: str, user: AuthUser = Depends(get_current_user)) -> JobOut
     new_dir = AppConfig.from_env().storage_dir / new_id
     new_dir.mkdir(parents=True, exist_ok=True)
 
-    if (options.get("source") or {}).get("url"):
-        filename = options["source"]["url"]
-        input_path = new_dir / "download_pending"
-    else:
-        source_file = Path(job.input_path)
-        if not source_file.exists():
-            raise HTTPException(status_code=400, detail="File gốc không còn trên đĩa")
-        filename = source_file.name
-        input_path = new_dir / filename
-        shutil.copy2(source_file, input_path)
+    source_file = Path(job.input_path)
+    if not source_file.exists():
+        raise HTTPException(status_code=400, detail="File gốc không còn trên đĩa")
+    filename = source_file.name
+    input_path = new_dir / filename
+    shutil.copy2(source_file, input_path)
 
     (new_dir / "job_config.json").write_text(
         json.dumps(options, ensure_ascii=False, indent=2), encoding="utf-8"

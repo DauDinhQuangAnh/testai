@@ -9,9 +9,9 @@ const FEATURES = [
     desc: "Giọng Neural bản địa + đa ngôn ngữ, chỉnh tốc độ và cao độ, nghe thử trước khi chạy.",
   },
   {
-    icon: "🌐",
-    title: "Dán link là xong",
-    desc: "YouTube, Douyin, TikTok... tự tải về và xử lý — không cần tải file thủ công.",
+    icon: "📤",
+    title: "Chỉ cần tải video lên",
+    desc: "Kéo thả file video/audio (tối đa 500MB), hệ thống tự xử lý toàn bộ pipeline.",
   },
   {
     icon: "🧠",
@@ -36,7 +36,7 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: "1", title: "Chọn nguồn", desc: "Dán link hoặc tải video lên, chọn ngôn ngữ đích." },
+  { n: "1", title: "Chọn nguồn", desc: "Tải video lên, chọn ngôn ngữ đích." },
   { n: "2", title: "Tùy chỉnh", desc: "Chọn giọng đọc, kiểu phụ đề, cách phối âm." },
   { n: "3", title: "Nhận kết quả", desc: "Video đã lồng tiếng + phụ đề đầy đủ định dạng." },
 ];
@@ -55,8 +55,8 @@ export default function Landing() {
           cú nhấp
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-ink-soft">
-          Tự động nhận diện lời nói, dịch thuật giữ ngữ cảnh và tạo giọng đọc tự nhiên — từ
-          video YouTube, Douyin hoặc file của bạn.
+          Tự động nhận diện lời nói, dịch thuật giữ ngữ cảnh và tạo giọng đọc tự nhiên — chỉ
+          cần tải video của bạn lên.
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <Link to="/register" className="btn-primary px-8 py-3 text-lg">

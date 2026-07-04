@@ -68,8 +68,6 @@ export interface AdminUserOut {
 // khong doi gi.
 export interface JobOptions {
   source: {
-    url: string | null;
-    quality: "720p" | "best";
     trim_seconds: number | null;
     source_language: string | null;
   };
@@ -110,7 +108,7 @@ export interface JobOptions {
 
 export function defaultOptions(): JobOptions {
   return {
-    source: { url: null, quality: "720p", trim_seconds: null, source_language: null },
+    source: { trim_seconds: null, source_language: null },
     dubbing: {
       enabled: true,
       target_language: "vi",

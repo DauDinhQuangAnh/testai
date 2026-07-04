@@ -540,6 +540,11 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
 
 ## 6j. Wizard "Tao video" 6 buoc (nang cap lon 2026-07-03, tham chieu UI VietDub)
 
+**CAP NHAT 2026-07-05: da BO HOAN TOAN tinh nang dan URL YouTube/Douyin/TikTok
+o Buoc 1 (theo yeu cau nguoi dung "chi cho phep upload thoi") - xem muc 9
+nhat ky cung ngay. Phan "Buoc 1 - Nguon" mo ta duoi day GIU LAI de hieu boi
+canh lich su, nhung KHONG CON DUNG - wizard gio CHI nhan file upload.
+
 **Trang thai:** Code xong, `pytest` 76/76 pass + `ruff` sach (chay that tren
 may dev). **CHUA chay thu end-to-end qua UI** - can restart Celery worker +
 Streamlit roi thu theo muc "Viec can lam" ben duoi.
@@ -801,9 +806,15 @@ bo job, thu xoa user. Bao loi de sua tiep.
   **Anh huong DB:** day la thay doi schema (bo cot/bang) - `create_all()`
   KHONG tu xoa cot/bang cu, xem canh bao reset DB o muc 8.
 
-## 6l. Tu dong lay cookie YouTube/Douyin bang Playwright (2026-07-05)
+## 6l. Tu dong lay cookie YouTube/Douyin bang Playwright (2026-07-05, DA XOA cung ngay)
 
-**Trang thai:** Code xong, test that (107/107 pytest pass, ruff sach,
+**DA XOA HOAN TOAN cung ngay 2026-07-05** khi nguoi dung quyet dinh bo tinh
+nang tai video tu URL (xem muc 9 nhat ky) - toan bo muc nay (bao gom code,
+dependency Playwright, nut "Lam moi cookie" o Admin) khong con ton tai trong
+repo. GIU LAI phan mo ta duoi day CHI de hieu boi canh/ly do da tung nghien
+cuu Douyin/YouTube cookie (vd. neu sau nay can lam lai tinh nang tai URL).
+
+**Trang thai (LICH SU, KHONG CON DUNG):** Code xong, test that (107/107 pytest pass, ruff sach,
 `npm run build` pass). Da smoke-test THAT tren may (Playwright + Chromium
 that, khong gia lap) - xem phat hien quan trong ve Douyin ben duoi.
 
@@ -1385,3 +1396,44 @@ can deploy that.
   107/107 pytest pass (them `test_cookie_refresh.py` + 3 test backend moi),
   ruff sach, `npm run build` pass, da chay Playwright+Chromium THAT tren may
   (khong gia lap) de xac nhan dinh dang cookies.txt sinh ra dung.
+- 2026-07-05 (cung ngay, lan 2): **BO HOAN TOAN tinh nang tai video tu URL
+  (YouTube/Douyin/TikTok...)** theo yeu cau nguoi dung ("bỏ luôn các chức
+  năng liên quan tới đưa link YOUTUBE và douyin để tải về đi, chỉ cho phép
+  upload thôi"). Xoa sach ca phan "Buoc 1 - Nguon" (muc 6j) lan tinh nang
+  cookie refresh vua them cung ngay (muc 6l) vi ca 2 chi ton tai de phuc vu
+  download URL:
+  - Xoa file: `subtitle_pipeline/infrastructure/downloader_ytdlp.py`,
+    `subtitle_pipeline/infrastructure/cookie_refresh.py`,
+    `tests/test_downloader.py`, `tests/test_cookie_refresh.py`.
+  - `app/jobs/tasks.py`: `_resolve_input()` bo nhanh tai URL (`download_video`),
+    chi con logic cat ngan (trim) khi test doan ngan. `process_video_job` bo
+    stage "download".
+  - `app/jobs/stages.py`: bo entry `("download", "Tải video từ URL")` khoi
+    `PIPELINE_STAGES` (con 10 buoc thay vi 11).
+  - `app/jobs/repository.py`: xoa `JobRepository.update_source()` (chi dung
+    de cap nhat filename/input_path THAT sau khi tai URL xong).
+  - `backend/routers/jobs.py`: `_create_job_from_options()`/`rerun_job()` bo
+    nhanh `source.url` - gio BAT BUOC phai co file upload, khong co file thi
+    tra loi 400.
+  - `backend/routers/admin.py`: xoa endpoint `POST /admin/refresh-cookies`.
+  - `requirements.txt`: bo `yt-dlp`, `playwright`. `.env.example`: bo
+    `YTDLP_COOKIES_FILE`/`YTDLP_COOKIES_FROM_BROWSER`.
+  - `frontend/src/pages/NewJob.tsx` (Buoc 1 cua wizard): bo toggle "Dán
+    URL"/"Tải video lên" - gio CHI hien input chon file. Bo state `useUrl`,
+    `sourceValid` gio chi phu thuoc `file`.
+  - `frontend/src/lib/types.ts`: bo `url`/`quality` khoi `JobOptions.source`.
+  - `frontend/src/lib/constants.ts`: xoa `QUALITY_CHOICES`, bo entry
+    `download` khoi `PIPELINE_STEPS` (con 10 buoc).
+  - `frontend/src/pages/Admin.tsx`: xoa section "Cookie tải video" + nut "Làm
+    mới cookie".
+  - `frontend/src/pages/Landing.tsx`: sua copy quang cao (bo nhac "Dán link
+    là xong"/"video YouTube, Douyin") thanh mo ta upload-only.
+  - Test: xoa 2 test lien quan URL/cookie trong `tests/test_backend_api.py`
+    (`test_create_url_job_without_file`, `test_refresh_cookies_*`), doi ten
+    `test_create_job_without_file_or_url_rejected` ->
+    `test_create_job_without_file_rejected`; xoa
+    `test_update_source_changes_filename_and_input_path` trong
+    `tests/test_job_repository.py`.
+  Xac nhan **86/86 pytest pass, ruff sach, `npm run build` pass** (tsc + vite)
+  sau khi xoa. Tinh nang trim/kiem thu doan ngan va ep ngon ngu nguon o Buoc 1
+  KHONG bi anh huong (van dung cho ca video upload).

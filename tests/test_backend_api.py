@@ -54,7 +54,7 @@ def _auth_headers(token: str) -> dict:
 
 
 def _create_upload_job(client, token: str) -> dict:
-    options = {"source": {"url": None}, "dubbing": {"enabled": False}}
+    options = {"dubbing": {"enabled": False}}
     res = client.post(
         "/api/jobs",
         data={"options": json.dumps(options)},
@@ -113,19 +113,7 @@ def test_create_upload_job_enqueues_task(client):
     assert client.enqueued and client.enqueued[0][0] == job["id"]
 
 
-def test_create_url_job_without_file(client):
-    token = _register(client)["token"]
-    options = {"source": {"url": "https://youtu.be/abc"}, "dubbing": {"enabled": True}}
-
-    res = client.post(
-        "/api/jobs", data={"options": json.dumps(options)}, headers=_auth_headers(token)
-    )
-
-    assert res.status_code == 200
-    assert res.json()["filename"] == "https://youtu.be/abc"
-
-
-def test_create_job_without_file_or_url_rejected(client):
+def test_create_job_without_file_rejected(client):
     token = _register(client)["token"]
 
     res = client.post("/api/jobs", data={"options": json.dumps({})}, headers=_auth_headers(token))
@@ -173,44 +161,6 @@ def test_admin_lists_users_with_job_count(client):
 
     assert len(users) == 1
     assert users[0]["job_count"] == 1
-
-
-def test_refresh_cookies_requires_admin(client):
-    token = _register(client)["token"]
-
-    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(token))
-
-    assert res.status_code == 403
-
-
-def test_refresh_cookies_calls_playwright_helper(client, monkeypatch, tmp_path):
-    admin_token = client.post(
-        "/api/auth/login", json={"email": "admin@test", "password": "admin-secret"}
-    ).json()["token"]
-    cookies_path = tmp_path / "cookies.txt"
-    monkeypatch.setenv("YTDLP_COOKIES_FILE", str(cookies_path))
-    monkeypatch.setattr("backend.routers.admin.refresh_cookies", lambda path: 7)
-
-    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(admin_token))
-
-    assert res.status_code == 200
-    assert res.json() == {"cookie_count": 7, "path": str(cookies_path)}
-
-
-def test_refresh_cookies_reports_error_as_502(client, monkeypatch):
-    admin_token = client.post(
-        "/api/auth/login", json={"email": "admin@test", "password": "admin-secret"}
-    ).json()["token"]
-
-    def _boom(path):
-        raise RuntimeError("chua chay --setup lan nao")
-
-    monkeypatch.setattr("backend.routers.admin.refresh_cookies", _boom)
-
-    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(admin_token))
-
-    assert res.status_code == 502
-    assert "chua chay --setup" in res.json()["detail"]
 
 
 def test_delete_job_removes_record(client):

@@ -22,7 +22,6 @@ from subtitle_pipeline.config import PipelineConfig
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.export.formats import FORMAT_WRITERS, SubtitleStyle
 from subtitle_pipeline.infrastructure.audio import trim_media
-from subtitle_pipeline.infrastructure.downloader_ytdlp import download_video
 from subtitle_pipeline.infrastructure.transcriber_faster_whisper import FasterWhisperTranscriber
 
 
@@ -45,18 +44,10 @@ def _build_dub_options(options: dict) -> DubRenderOptions:
     )
 
 
-def _resolve_input(job: Job, source: dict, repo: JobRepository, on_stage) -> Path:
-    """Chuan bi file input: tai tu URL neu job tao bang link (stage
-    "download"), roi cat ngan neu bat che do kiem thu doan ngan.
-    """
+def _resolve_input(job: Job, source: dict) -> Path:
+    """Chuan bi file input: cat ngan neu bat che do kiem thu doan ngan."""
     job_dir = Path(job.output_dir).parent
-
-    if source.get("url"):
-        on_stage("download")
-        input_path = download_video(source["url"], job_dir, source.get("quality", "720p"))
-        repo.update_source(job.id, filename=input_path.name, input_path=input_path)
-    else:
-        input_path = Path(job.input_path)
+    input_path = Path(job.input_path)
 
     trim_seconds = source.get("trim_seconds")
     if trim_seconds:
@@ -68,9 +59,9 @@ def _resolve_input(job: Job, source: dict, repo: JobRepository, on_stage) -> Pat
 
 @celery_app.task(name="app.jobs.tasks.process_video_job")
 def process_video_job(job_id: str, options: dict | None = None) -> None:
-    """Chay het flow trong 1 job: (tai URL neu co) -> transcribe -> (dich ->
-    long tieng -> render neu bat) theo `options` tu wizard Upload. `job.stage`
-    cap nhat xuyen suot de Dashboard hien tien do.
+    """Chay het flow trong 1 job: transcribe -> (dich -> long tieng -> render
+    neu bat) theo `options` tu wizard Upload. `job.stage` cap nhat xuyen suot
+    de Dashboard hien tien do.
     """
     options = options or {}
     repo = JobRepository()
@@ -86,8 +77,7 @@ def process_video_job(job_id: str, options: dict | None = None) -> None:
     try:
         config = PipelineConfig.from_env()
         source = options.get("source") or {}
-        input_path = _resolve_input(job, source, repo, on_stage)
-        job = repo.get(job_id)  # update_source co the vua doi filename/input_path
+        input_path = _resolve_input(job, source)
 
         # Ep cung ngon ngu nguon neu nguoi dung chon (mac dinh auto-detect).
         transcriber_factory = None

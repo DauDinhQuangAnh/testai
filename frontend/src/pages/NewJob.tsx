@@ -7,7 +7,6 @@ import { api } from "../lib/api";
 import {
   FONT_CHOICES,
   POSITION_CHOICES,
-  QUALITY_CHOICES,
   RENDER_QUALITY_CHOICES,
   TRANSLATE_PRESETS,
   TRIM_CHOICES,
@@ -28,7 +27,6 @@ export default function NewJob() {
   const [step, setStep] = useState(0);
   const [options, setOptions] = useState<JobOptions>(defaultOptions());
   const [file, setFile] = useState<File | null>(null);
-  const [useUrl, setUseUrl] = useState(true);
   const [presetIndex, setPresetIndex] = useState(0);
   const [sampleUrl, setSampleUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -64,13 +62,13 @@ export default function NewJob() {
     mutationFn: async () => {
       const form = new FormData();
       form.append("options", JSON.stringify(options));
-      if (!useUrl && file) form.append("file", file);
+      if (file) form.append("file", file);
       return api.postForm<JobOut>("/api/jobs", form);
     },
     onSuccess: (job) => navigate(`/studio/jobs/${job.id}`),
   });
 
-  const sourceValid = useUrl ? Boolean(options.source.url?.trim()) : Boolean(file);
+  const sourceValid = Boolean(file);
   const selectedVoice =
     voices.find((v) => v.id === options.dubbing.voice) ?? voices[0] ?? null;
 
@@ -80,7 +78,6 @@ export default function NewJob() {
 
     if (key === "source") {
       patch({ source: defaults.source });
-      setUseUrl(true);
       setFile(null);
       return;
     }
@@ -104,7 +101,6 @@ export default function NewJob() {
     }
 
     setOptions(defaults);
-    setUseUrl(true);
     setFile(null);
     setPresetIndex(0);
     setSampleUrl(null);
@@ -179,72 +175,20 @@ export default function NewJob() {
               {step === 0 && (
                 <div className="space-y-5">
                   <h2 className="text-lg font-semibold">Chọn nguồn video</h2>
-                  <div className="flex gap-2">
-                    <button
-                      className={useUrl ? "btn-primary" : "btn-ghost"}
-                      onClick={() => setUseUrl(true)}
-                    >
-                      🔗 Dán URL
-                    </button>
-                    <button
-                      className={!useUrl ? "btn-primary" : "btn-ghost"}
-                      onClick={() => setUseUrl(false)}
-                    >
-                      📁 Tải video lên
-                    </button>
+                  <div>
+                    <label className="label">File video/audio (tối đa 500MB)</label>
+                    <input
+                      type="file"
+                      accept=".mp4,.mkv,.mov,.wav,.mp3,.m4a"
+                      className="input"
+                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    />
+                    {file && (
+                      <p className="mt-2 text-sm text-ink-soft">
+                        {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
+                      </p>
+                    )}
                   </div>
-
-                  {useUrl ? (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="label">URL video (YouTube/Douyin/TikTok...)</label>
-                        <input
-                          className="input"
-                          placeholder="https://www.youtube.com/watch?v=..."
-                          value={options.source.url ?? ""}
-                          onChange={(e) =>
-                            patch({ source: { ...options.source, url: e.target.value || null } })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="label">Chất lượng tải xuống</label>
-                        <select
-                          className="input"
-                          value={options.source.quality}
-                          onChange={(e) =>
-                            patch({
-                              source: {
-                                ...options.source,
-                                quality: e.target.value as "720p" | "best",
-                              },
-                            })
-                          }
-                        >
-                          {QUALITY_CHOICES.map((q) => (
-                            <option key={q.value} value={q.value}>
-                              {q.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="label">File video/audio (tối đa 500MB)</label>
-                      <input
-                        type="file"
-                        accept=".mp4,.mkv,.mov,.wav,.mp3,.m4a"
-                        className="input"
-                        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                      />
-                      {file && (
-                        <p className="mt-2 text-sm text-ink-soft">
-                          {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
-                        </p>
-                      )}
-                    </div>
-                  )}
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -753,7 +697,7 @@ export default function NewJob() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <ReviewCard title="NGUỒN">
                       <p className="break-all font-medium">
-                        {useUrl ? (options.source.url ?? "(chưa nhập URL)") : (file?.name ?? "(chưa chọn file)")}
+                        {file?.name ?? "(chưa chọn file)"}
                       </p>
                       <p className="text-xs text-ink-soft">
                         {options.source.source_language ?? "auto"} →{" "}
@@ -813,7 +757,7 @@ export default function NewJob() {
 
                   {!sourceValid && (
                     <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Chưa có nguồn hợp lệ — quay lại bước 1 để chọn file hoặc dán URL.
+                      Chưa có nguồn hợp lệ — quay lại bước 1 để chọn file.
                     </p>
                   )}
                   {createJob.isError && (

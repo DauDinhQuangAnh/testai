@@ -7,11 +7,6 @@ export const TRIM_CHOICES: { label: string; value: number | null }[] = [
   { label: "Chạy thử 120 giây đầu", value: 120 },
 ];
 
-export const QUALITY_CHOICES: { label: string; value: "720p" | "best" }[] = [
-  { label: "Ổn định 720p (nhẹ, nhanh)", value: "720p" },
-  { label: "Tốt nhất có sẵn", value: "best" },
-];
-
 export const TRANSLATE_PRESETS: {
   label: string;
   maxChars: number;
@@ -53,11 +48,10 @@ export const STATUS_LABELS: Record<string, string> = {
   failed: "Thất bại",
 };
 
-// Khop app/jobs/stages.py PIPELINE_STAGES (11 buoc) - dung cho progress bar
+// Khop app/jobs/stages.py PIPELINE_STAGES (10 buoc) - dung cho progress bar
 // nhieu doan.
 export const PIPELINE_STEPS = [
   { key: "starting", label: "Khởi động" },
-  { key: "download", label: "Tải video" },
   { key: "extract_audio", label: "Tách audio" },
   { key: "denoise", label: "Khử ồn" },
   { key: "transcribe", label: "Nhận diện lời nói" },
