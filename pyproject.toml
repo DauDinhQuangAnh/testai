@@ -13,15 +13,13 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4"]
 known-first-party = ["subtitle_pipeline", "app", "phase1_feasibility"]
 
 [tool.ruff.lint.per-file-ignores]
-# Cac file duoi day phai them goc repo vao sys.path TRUOC KHI import
-# streamlit/subtitle_pipeline (Streamlit/script doc lap khong tu them thu muc
-# goc vao sys.path - xem comment dau moi file), nen cac import do khong nam o
-# dau file nhu E402 yeu cau. Day la ngoai le co chu dich, khong phai loi.
-"app/Home.py" = ["E402"]
-"app/pages/*.py" = ["E402"]
 # FastAPI dung `param = Depends(...)` lam default argument theo thiet ke
 # chinh thuc cua framework - B008 canh bao sai trong ngu canh nay.
 "backend/**" = ["B008"]
+# Cac script duoi day phai them goc repo vao sys.path TRUOC KHI import
+# subtitle_pipeline (script doc lap khong tu them thu muc goc vao sys.path -
+# xem comment dau moi file), nen import do khong nam o dau file nhu E402 yeu
+# cau. Day la ngoai le co chu dich, khong phai loi.
 "phase1_feasibility/step01_extract_audio.py" = ["E402"]
 "phase1_feasibility/step02_denoise.py" = ["E402"]
 "phase1_feasibility/step04_transcribe.py" = ["E402"]

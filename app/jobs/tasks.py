@@ -1,8 +1,10 @@
 """Celery task chay AI pipeline (Phase 2 - subtitle_pipeline) cho 1 Job va cap
-nhat trang thai/tien do vao DB de Streamlit Dashboard hien thi.
+nhat trang thai/tien do vao DB de FE React (frontend/) poll qua backend API
+hien thi.
 
-`process_video_job` nhan 1 dict `options` (toan bo lua chon tu wizard Upload
-6 buoc - xem schema trong app/pages/1_Upload.py, luu song song vao
+`process_video_job` nhan 1 dict `options` (toan bo lua chon tu wizard 6 buoc
+o frontend/src/pages/NewJob.tsx - xem type JobOptions trong
+frontend/src/lib/types.ts, luu song song vao
 `job_config.json` trong thu muc job de trace/tao lai). Cac task
 translate_job/dub_job (Editor) van giu tham so roi don gian.
 """

@@ -1,4 +1,4 @@
-"""Repository cho Job - tach truy van DB ra khoi Streamlit pages va Celery task.
+"""Repository cho Job - tach truy van DB ra khoi backend API routers va Celery task.
 
 Nhan session_factory qua constructor (mac dinh dung Postgres that qua
 make_session_factory()) thay vi import thang mot session global - nho vay test

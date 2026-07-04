@@ -64,23 +64,24 @@ SRT/VTT/ASS/TXT/JSON + video da long tieng.
 
 ## 2. Quyet dinh kien truc da chot
 
-- **Tool CA NHAN, KHONG con da nguoi dung/Auth/Billing (quyet dinh 2026-07-03,
-  xem "Quyet dinh moi"):** khong dang nhap, khong phan quyen theo user, khong
-  goi cuoc/gioi han usage. Moi job hien thi cho tat ca (thuc te chi 1 nguoi
-  dung tren 1 may dev). Da xoa hoan toan `app/auth/`, `app/billing/`,
-  `app/pages/4_Billing.py`, bang `users`/`subscriptions`, cot `Job.user_id`.
-- **Frontend/Backend UI: Streamlit xuyen suot.** KHONG dung Next.js. Streamlit
-  goi truc tiep ham Python (in-process), KHONG dung FastAPI lam lop REST API
-  trung gian.
-- **Celery + Redis + Postgres van giu nguyen** - khong phai de lam REST API, ma
-  de serialize cac job GPU nang (may dev chi chay duoc concurrency=1 cho GPU) va
-  luu trang thai job. Streamlit chi enqueue task roi poll Postgres/Redis.
-- **Subtitle editor (Phase 4) dung widget Streamlit thuan (`st.data_editor`),
-  KHONG dung Custom Streamlit Component nhu du kien ban dau.** Ly do doi huong
-  (2026-07-02): viet mot Streamlit Component that can Node.js/npm de build va
-  kiem thu bundle JS/React - moi truong viet code khong co cong cu do (tuong tu
-  ly do khong co Python that), nen code React chua tung duoc build la rui ro
-  cao hon han. Nang cap len timeline/waveform keo-tha that su la viec lam sau.
+**LUU Y: 2 gach dau dong dau tien duoi day la quyet dinh CU (2026-07-03,
+buoi sang), DA BI DAO NGUOC cung ngay boi quyet dinh o muc 6k (UI React +
+FastAPI) - giu lai de hieu boi canh/ly do, xem trang thai THAT HIEN TAI ngay
+sau do.**
+
+- ~~Tool ca nhan, khong da nguoi dung/Auth/Billing~~ - **DA DAO NGUOC**: gio
+  co Auth (dang ky/dang nhap) + admin (tai khoan chung tu env), xem muc 6k.
+  Van KHONG gioi han usage/goi cuoc (nguoi dung xac nhan giu nguyen phan nay).
+- ~~Frontend/Backend UI: Streamlit xuyen suot~~ - **DA DAO NGUOC + XOA HOAN
+  TOAN Streamlit (2026-07-04)**: UI gio la `frontend/` (React + TypeScript +
+  Tailwind, Vite) goi `backend/` (FastAPI REST API) qua HTTP. Celery worker
+  + Postgres/Redis giu nguyen vai tro cu (backend enqueue task, worker xu ly
+  ngam, khong doi gi ve pipeline/Celery). Xem muc 6k de biet kien truc day
+  du + cach chay 4 tien trinh.
+- **Subtitle editor** (chinh sua text/timing/speaker) hien CHUA duoc port
+  sang UI React (Editor.py cu la Streamlit `st.data_editor`, da xoa cung
+  Streamlit) - CAN LAM LAI o `frontend/` neu van can tinh nang nay (ghi nhan
+  o muc 8 "Van de dang mo").
 ## 3. Rang buoc moi truong quan trong (BAT BUOC DOC)
 
 - **May dev THAT** (noi se chay/test pipeline AI): RTX 4050 Laptop 6GB VRAM,
@@ -646,8 +647,20 @@ flow tao job qua UI React** - xem "Viec can lam".
 
 Nguoi dung ket luan Streamlit khong du cho UI chuyen nghiep. Quyet dinh nay
 DAO NGUOC 2 quyet dinh cu: (1) "Streamlit xuyen suot, khong FastAPI", (2)
-"xoa hoan toan Auth". Cac trang Streamlit trong `app/pages/` GIU LAI lam
-legacy (van chay duoc) cho toi khi UI React verify xong - se xoa sau.
+"xoa hoan toan Auth".
+
+**Cap nhat 2026-07-04 (cung ngay) - DA XOA HOAN TOAN Streamlit** (nguoi dung:
+"bỏ streamlit đi ko cần nữa, tối ưu toàn bộ cho source mới"), khong con giu
+lam legacy nhu du dinh ban dau - UI React da du dung de thay the hoan toan.
+Da xoa: `app/pages/` (1_Upload.py, 2_Dashboard.py, 3_Editor.py), `app/Home.py`,
+`app/ui.py` (chi con dung boi Streamlit, logic that da chuyen het sang
+`app/jobs/stages.py` tu truoc), `.streamlit/config.toml`. Bo dependency
+`streamlit`, `pandas` (chi Editor.py dung) khoi `requirements.txt`. Bo 2 dong
+`per-file-ignores` E402 cho `app/Home.py`/`app/pages/*.py` trong
+`pyproject.toml` (khong con file nao can ngoai le nay). Them job
+`frontend-build` (npm install + `npm run build`) vao `.github/workflows/ci.yml`
+de CI cung xac nhan FE build duoc, khong chi BE. **91/91 pytest + ruff sach
+sau khi xoa** (xac nhan khong con gi phu thuoc code Streamlit cu).
 
 **Kien truc:**
 - **`backend/`** - FastAPI (`python -m uvicorn backend.main:app --port 8000`):
@@ -790,6 +803,14 @@ bo job, thu xoa user. Bao loi de sua tiep.
 
 ## 8. Van de dang mo / can quyet dinh
 
+- **Chua co trang "Sua phu de" (Editor) trong UI React** - Streamlit cu co
+  `3_Editor.py` cho sua text/timing/speaker cua 1 job DONE roi xuat lai file,
+  cong voi nut "Dich lai"/"Long tieng lai" doi ngon ngu/giong khac. Trang nay
+  KHONG duoc port sang `frontend/` khi chuyen UI (chi lam Studio + wizard tao
+  moi + chi tiet xem ket qua) va da bi xoa cung Streamlit (2026-07-04) - can
+  lam lai trong React neu van can tinh nang sua phu de sau khi co ket qua
+  (backend da co san `POST /jobs/{id}/rerun` dung lai toan bo config cu, nhung
+  chua co API rieng cho "chi doi ngon ngu/giong" hay "sua tay 1 dong phu de").
 - **Code Phase 1-3 chua duoc chay qua Ruff/pytest lan nao** - chuan code o
   `docs/CODE_STYLE.md` moi duoc chot (2026-07-02) nhung code truoc do viet
   trong sandbox khong co Python that nen chua verify duoc. Da ra soat thu cong
@@ -1241,3 +1262,11 @@ bo job, thu xoa user. Bao loi de sua tiep.
   Celery/options schema giu NGUYEN 100%. Streamlit pages giu lam legacy.
   91/91 pytest + ruff sach + `npm run build` pass + smoke test that tren
   Postgres OK. CHUA test E2E qua UI React (checklist muc 6k).
+- 2026-07-04 (cung ngay, lan 2): **Xoa hoan toan Streamlit** theo yeu cau
+  nguoi dung (khong con giu legacy nhu du dinh) - xem chi tiet muc 6k "Cap
+  nhat 2026-07-04". Xoa `app/pages/`, `app/Home.py`, `app/ui.py`,
+  `.streamlit/`; bo dependency `streamlit`/`pandas`; don `pyproject.toml`
+  (bo E402 ignore da het can); them job `frontend-build` vao CI. Cap nhat
+  docstring `app/jobs/tasks.py`/`repository.py`/`stages.py` (khong con nhac
+  Streamlit). README.md them huong dan chay 4 tien trinh (docker compose +
+  celery + uvicorn + npm run dev). 91/91 pytest + ruff sach sau khi xoa.

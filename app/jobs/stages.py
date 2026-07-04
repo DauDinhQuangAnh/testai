@@ -1,7 +1,6 @@
 """Anh xa `Job.stage` (ghi boi Celery task, xem app/jobs/tasks.py) sang nhan
-tieng Viet + phan tram tien do. Tach rieng khoi app/ui.py (von import
-streamlit) de backend FastAPI (backend/) dung duoc ma khong keo theo
-streamlit - app/ui.py van re-export cho cac trang Streamlit legacy.
+tieng Viet + phan tram tien do. Dung boi `backend/schemas.py` (JobOut) - FE
+React (frontend/) hien lai qua StageProgress.tsx.
 """
 
 # Thu tu stage khop voi thu tu notify() trong TranscriptionPipeline.run() +

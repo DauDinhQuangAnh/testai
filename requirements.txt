@@ -13,18 +13,11 @@ deepfilternet>=0.5.6
 python-dotenv>=1.0.1
 huggingface_hub>=0.23.0
 
-# Phase 3 - Streamlit App + job queue. streamlit>=1.41 vi UI dung
-# st.fragment(run_every) + st.rerun(scope) (1.37), icon tren button (1.39),
-# st.segmented_control (1.40).
-streamlit>=1.41.0
+# Job queue + DB (backend/ FastAPI enqueue task, Celery worker xu ly)
 sqlalchemy>=2.0.30
 psycopg2-binary>=2.9.9
 celery>=5.4.0
 redis>=5.0.4
-
-# Phase 4 - Editor (bang chinh sua thay cho Custom Streamlit Component - xem
-# HANDOFF.md Phase 4 ve ly do doi huong)
-pandas>=2.2.0
 
 # Phase 5 - Dich da ngon ngu (NLLB-200 qua transformers - xem canh bao rui ro
 # trong subtitle_pipeline/infrastructure/translator_nllb.py)
