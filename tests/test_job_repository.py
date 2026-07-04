@@ -68,3 +68,16 @@ def test_delete_unknown_job_is_a_noop():
     repo = _make_repo()
 
     repo.delete("does-not-exist")  # khong raise
+
+
+def test_update_source_changes_filename_and_input_path():
+    repo = _make_repo()
+    job = repo.create(
+        filename="https://youtu.be/abc", input_path=Path("pending"), output_dir=Path("out")
+    )
+
+    repo.update_source(job.id, filename="video.mp4", input_path=Path("real/video.mp4"))
+
+    fetched = repo.get(job.id)
+    assert fetched.filename == "video.mp4"
+    assert fetched.input_path == str(Path("real/video.mp4"))

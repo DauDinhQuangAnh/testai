@@ -47,3 +47,37 @@ def test_synthesizer_accepts_explicit_voice():
     tts = EdgeTTSSynthesizer("vi", voice="vi-VN-NamMinhNeural")
 
     assert tts._voice == "vi-VN-NamMinhNeural"
+
+
+def test_voice_catalog_marks_native_voices_recommended_first():
+    from subtitle_pipeline.infrastructure.tts_edge import voice_catalog
+
+    catalog = voice_catalog("vi")
+
+    assert catalog[0]["recommended"] is True
+    assert catalog[0]["id"].startswith("vi-VN")
+    # Multilingual (khong phai ban dia) khong duoc danh dau recommended.
+    multilingual = [v for v in catalog if "Multilingual" in v["id"]]
+    assert multilingual and all(not v["recommended"] for v in multilingual)
+
+
+def test_voice_catalog_has_gender_and_style():
+    from subtitle_pipeline.infrastructure.tts_edge import voice_catalog
+
+    for entry in voice_catalog("vi"):
+        assert entry["gender"] in ("nam", "nữ")
+        assert entry["style"]
+
+
+def test_synthesizer_formats_rate_and_pitch_with_sign():
+    tts = EdgeTTSSynthesizer("vi", rate_percent=25, pitch_hz=-5)
+
+    assert tts._rate == "+25%"
+    assert tts._pitch == "-5Hz"
+
+
+def test_synthesizer_defaults_to_neutral_rate_pitch():
+    tts = EdgeTTSSynthesizer("vi")
+
+    assert tts._rate == "+0%"
+    assert tts._pitch == "+0Hz"

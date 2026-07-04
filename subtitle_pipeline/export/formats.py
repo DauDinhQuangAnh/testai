@@ -3,6 +3,7 @@ libs nen test duoc ma khong can may dev that (xem tests/test_export_formats.py).
 """
 
 import json
+from dataclasses import dataclass
 
 from subtitle_pipeline.domain.models import SubtitleSegment
 
@@ -55,7 +56,42 @@ def to_vtt(segments: list[SubtitleSegment]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def to_ass(segments: list[SubtitleSegment]) -> str:
+@dataclass(frozen=True)
+class SubtitleStyle:
+    """Style hien thi phu de ASS - mac dinh khop CHINH XAC header cu (truoc
+    khi parameterize) de khong doi hanh vi cac cho goi to_ass() khong truyen
+    style. Dung boi wizard Upload (buoc Phu de) + hardsub (audio_mux.py).
+    """
+
+    font: str = "Arial"
+    font_size: int = 48
+    text_color: str = "#FFFFFF"
+    outline_color: str = "#000000"
+    outline_width: float = 2.0
+    position: str = "bottom"  # bottom | middle | top
+    opaque_box: bool = False
+    background_opacity: float = 0.5  # 0..1, chi dung cho mau nen sau chu
+
+
+_ASS_ALIGNMENTS = {"bottom": 2, "middle": 5, "top": 8}
+
+
+def _hex_to_ass_color(hex_color: str, alpha: float = 0.0) -> str:
+    """#RRGGBB -> &HAABBGGRR (ASS dao thu tu kenh mau, alpha 0=duc 255=trong)."""
+    value = hex_color.lstrip("#")
+    r, g, b = int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+    a = round(alpha * 255)
+    return f"&H{a:02X}{b:02X}{g:02X}{r:02X}"
+
+
+def to_ass(segments: list[SubtitleSegment], style: SubtitleStyle | None = None) -> str:
+    style = style or SubtitleStyle()
+    primary = _hex_to_ass_color(style.text_color)
+    outline_color = _hex_to_ass_color(style.outline_color)
+    back_color = _hex_to_ass_color("#000000", alpha=style.background_opacity)
+    border_style = 3 if style.opaque_box else 1
+    alignment = _ASS_ALIGNMENTS.get(style.position, 2)
+
     header = (
         "[Script Info]\n"
         "ScriptType: v4.00+\n"
@@ -66,8 +102,10 @@ def to_ass(segments: list[SubtitleSegment]) -> str:
         "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
         "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        "Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-        "0,0,0,0,100,100,0,0,1,2,0,2,10,10,20,1\n\n"
+        f"Style: Default,{style.font},{style.font_size},{primary},&H000000FF,"
+        f"{outline_color},{back_color},"
+        f"0,0,0,0,100,100,0,0,{border_style},{style.outline_width:g},0,"
+        f"{alignment},10,10,20,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Text"
     )

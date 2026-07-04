@@ -7,7 +7,11 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from subtitle_pipeline.infrastructure.audio_mux import _build_mux_command, build_dub_track
+from subtitle_pipeline.infrastructure.audio_mux import (
+    _build_burn_command,
+    _build_mux_command,
+    build_dub_track,
+)
 
 
 def test_clips_placed_at_correct_offset(tmp_path: Path):
@@ -53,30 +57,53 @@ def test_clip_beyond_total_duration_is_dropped(tmp_path: Path):
 
 
 def test_mux_command_replace_mode_maps_dub_audio_only():
-    cmd = _build_mux_command(
-        Path("in.mp4"),
-        Path("dub.wav"),
-        Path("out.mp4"),
-        keep_original_audio=False,
-        original_volume=0.3,
-    )
+    cmd = _build_mux_command(Path("in.mp4"), Path("dub.wav"), Path("out.mp4"), original_volume=0.0)
 
     assert "-filter_complex" not in cmd
     assert cmd[cmd.index("-map") + 1] == "0:v:0"
     assert "1:a:0" in cmd
 
 
-def test_mux_command_keep_mode_mixes_with_reduced_original():
+def test_mux_command_replace_mode_with_dub_volume_uses_filter():
     cmd = _build_mux_command(
-        Path("in.mp4"),
-        Path("dub.wav"),
-        Path("out.mp4"),
-        keep_original_audio=True,
-        original_volume=0.3,
+        Path("in.mp4"), Path("dub.wav"), Path("out.mp4"), original_volume=0.0, dub_volume=1.2
     )
+
+    filter_arg = cmd[cmd.index("-filter_complex") + 1]
+    assert "volume=1.2" in filter_arg
+    assert "[aout]" in cmd
+
+
+def test_mux_command_keep_mode_mixes_with_reduced_original():
+    cmd = _build_mux_command(Path("in.mp4"), Path("dub.wav"), Path("out.mp4"), original_volume=0.3)
 
     filter_arg = cmd[cmd.index("-filter_complex") + 1]
     assert "volume=0.3" in filter_arg
     assert "amix=inputs=2" in filter_arg
     assert "normalize=0" in filter_arg
     assert "[aout]" in cmd  # map audio da tron, khong phai track goc
+
+
+def test_mux_command_ducking_uses_sidechain_and_asplit():
+    cmd = _build_mux_command(
+        Path("in.mp4"),
+        Path("dub.wav"),
+        Path("out.mp4"),
+        original_volume=0.4,
+        dub_volume=1.0,
+        ducking=True,
+    )
+
+    filter_arg = cmd[cmd.index("-filter_complex") + 1]
+    assert "sidechaincompress" in filter_arg
+    # Track dub dung 2 lan (sidechain + tron output) nen phai asplit.
+    assert "asplit=2" in filter_arg
+    assert "amix=inputs=2" in filter_arg
+
+
+def test_burn_command_uses_ass_filename_and_crf():
+    cmd = _build_burn_command(Path("in.mp4"), "subs.ass", Path("out.mp4"), crf=18)
+
+    assert cmd[cmd.index("-vf") + 1] == "ass=subs.ass"
+    assert cmd[cmd.index("-crf") + 1] == "18"
+    assert "libx264" in cmd

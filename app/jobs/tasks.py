@@ -1,5 +1,10 @@
 """Celery task chay AI pipeline (Phase 2 - subtitle_pipeline) cho 1 Job va cap
 nhat trang thai/tien do vao DB de Streamlit Dashboard hien thi.
+
+`process_video_job` nhan 1 dict `options` (toan bo lua chon tu wizard Upload
+6 buoc - xem schema trong app/pages/1_Upload.py, luu song song vao
+`job_config.json` trong thu muc job de trace/tao lai). Cac task
+translate_job/dub_job (Editor) van giu tham so roi don gian.
 """
 
 import json
@@ -8,30 +13,64 @@ from pathlib import Path
 from app.db.models import Job, JobStatus
 from app.jobs.celery_app import celery_app
 from app.jobs.repository import JobRepository
-from subtitle_pipeline.application.dub import dub_and_export
+from subtitle_pipeline.application.dub import DubRenderOptions, dub_and_export
 from subtitle_pipeline.application.pipeline import TranscriptionPipeline
 from subtitle_pipeline.application.translate import translate_and_export
 from subtitle_pipeline.config import PipelineConfig
 from subtitle_pipeline.domain.models import SubtitleSegment
-from subtitle_pipeline.export.formats import FORMAT_WRITERS
+from subtitle_pipeline.export.formats import FORMAT_WRITERS, SubtitleStyle
+from subtitle_pipeline.infrastructure.audio import trim_media
+from subtitle_pipeline.infrastructure.downloader_ytdlp import download_video
+from subtitle_pipeline.infrastructure.transcriber_faster_whisper import FasterWhisperTranscriber
+
+
+def _build_dub_options(options: dict) -> DubRenderOptions:
+    dubbing = options.get("dubbing") or {}
+    audio = options.get("audio") or {}
+    subtitle = options.get("subtitle") or {}
+    output = options.get("output") or {}
+    return DubRenderOptions(
+        voice=dubbing.get("voice"),
+        rate_percent=int(dubbing.get("rate_percent", 0)),
+        pitch_hz=int(dubbing.get("pitch_hz", 0)),
+        original_volume=float(audio.get("original_volume", 0.0)),
+        dub_volume=float(audio.get("dub_volume", 1.0)),
+        ducking=bool(audio.get("ducking", False)),
+        output_format=output.get("format", "mp4"),
+        burn_subtitles=bool(subtitle.get("burn_in", False)),
+        subtitle_style=SubtitleStyle(**(subtitle.get("style") or {})),
+        render_quality=output.get("quality", "balanced"),
+    )
+
+
+def _resolve_input(job: Job, source: dict, repo: JobRepository, on_stage) -> Path:
+    """Chuan bi file input: tai tu URL neu job tao bang link (stage
+    "download"), roi cat ngan neu bat che do kiem thu doan ngan.
+    """
+    job_dir = Path(job.output_dir).parent
+
+    if source.get("url"):
+        on_stage("download")
+        input_path = download_video(source["url"], job_dir, source.get("quality", "720p"))
+        repo.update_source(job.id, filename=input_path.name, input_path=input_path)
+    else:
+        input_path = Path(job.input_path)
+
+    trim_seconds = source.get("trim_seconds")
+    if trim_seconds:
+        trimmed = job_dir / f"_trimmed_{trim_seconds}s{input_path.suffix}"
+        trim_media(input_path, trimmed, trim_seconds)
+        return trimmed
+    return input_path
 
 
 @celery_app.task(name="app.jobs.tasks.process_video_job")
-def process_video_job(
-    job_id: str,
-    target_language: str | None = None,
-    voice: str | None = None,
-    keep_original_audio: bool = False,
-) -> None:
-    """Chay pipeline chinh (transcribe). Neu co `target_language`, chay tiep
-    LUON trong cung 1 job: dich -> long tieng -> mux video - nguoi dung chi
-    can upload 1 lan va chon ngon ngu, khong can vao Editor bam gi them (xem
-    HANDOFF.md Phase 5b, quyet dinh gop flow 2026-07-03). `job.stage` duoc cap
-    nhat xuyen suot ca 2 giai doan de Dashboard hien tien do dung.
-    `voice`: ten giong Edge TTS (xem tts_edge.VOICE_OPTIONS), None = giong
-    mac dinh cua ngon ngu. `keep_original_audio`: True = giu tieng goc giam
-    70% va de tieng dich len tren (voice-over), False = thay hoan toan.
+def process_video_job(job_id: str, options: dict | None = None) -> None:
+    """Chay het flow trong 1 job: (tai URL neu co) -> transcribe -> (dich ->
+    long tieng -> render neu bat) theo `options` tu wizard Upload. `job.stage`
+    cap nhat xuyen suot de Dashboard hien tien do.
     """
+    options = options or {}
     repo = JobRepository()
     job = repo.get(job_id)
     if job is None:
@@ -44,9 +83,26 @@ def process_video_job(
 
     try:
         config = PipelineConfig.from_env()
+        source = options.get("source") or {}
+        input_path = _resolve_input(job, source, repo, on_stage)
+        job = repo.get(job_id)  # update_source co the vua doi filename/input_path
+
+        # Ep cung ngon ngu nguon neu nguoi dung chon (mac dinh auto-detect).
+        transcriber_factory = None
+        forced_language = source.get("source_language")
+        if forced_language:
+            transcriber_factory = lambda: FasterWhisperTranscriber(  # noqa: E731
+                config.whisper_model,
+                config.whisper_compute_type,
+                config.device,
+                language=forced_language,
+            )
+
         work_dir = Path(job.output_dir) / "_work"
-        pipeline = TranscriptionPipeline(config=config, work_dir=work_dir)
-        segments, detected_language = pipeline.run(Path(job.input_path), on_stage=on_stage)
+        pipeline = TranscriptionPipeline(
+            config=config, work_dir=work_dir, transcriber_factory=transcriber_factory
+        )
+        segments, detected_language = pipeline.run(input_path, on_stage=on_stage)
 
         out_dir = Path(job.output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -59,23 +115,32 @@ def process_video_job(
         # xem _read_source_language() ben duoi.
         (out_dir / f"{stem}.source_language.txt").write_text(detected_language, encoding="utf-8")
 
-        if target_language:
+        dubbing = options.get("dubbing") or {}
+        if dubbing.get("enabled") and dubbing.get("target_language"):
+            translation = options.get("translation") or {}
             try:
                 on_stage("translate")
                 translated = translate_and_export(
-                    segments, detected_language, target_language, config.device, out_dir, stem
+                    segments,
+                    detected_language,
+                    dubbing["target_language"],
+                    config.device,
+                    out_dir,
+                    stem,
+                    glossary_text=translation.get("glossary", ""),
+                    max_chars_per_line=int(translation.get("max_chars_per_line", 42)),
+                    max_lines=int(translation.get("max_lines", 2)),
                 )
 
                 on_stage("dub")
                 dub_and_export(
                     segments=translated,
-                    target_language=target_language,
-                    source_video=Path(job.input_path),
+                    target_language=dubbing["target_language"],
+                    source_video=input_path,
                     work_dir=work_dir,
                     out_dir=out_dir,
                     stem=stem,
-                    voice=voice,
-                    keep_original_audio=keep_original_audio,
+                    options=_build_dub_options(options),
                 )
             except Exception as exc:
                 # KHONG lam FAILED ca job - transcribe da thanh cong, phu de
@@ -180,6 +245,11 @@ def dub_job(
         work_dir=work_dir,
         out_dir=out_dir,
         stem=stem,
-        voice=voice,
-        keep_original_audio=keep_original_audio,
+        # Editor chi co 2 lua chon don gian (giong + giu/xoa tieng goc) -
+        # muon tinh chinh sau (ducking, hardsub, toc do...) thi tao job moi
+        # tu wizard Upload voi day du buoc.
+        options=DubRenderOptions(
+            voice=voice,
+            original_volume=0.3 if keep_original_audio else 0.0,
+        ),
     )

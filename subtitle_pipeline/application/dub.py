@@ -16,10 +16,16 @@ quyet dinh don file 2026-07-03.
 import shutil
 import time
 from contextlib import ExitStack
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from subtitle_pipeline.domain.models import SubtitleSegment
-from subtitle_pipeline.infrastructure.audio_mux import build_dub_track, mux_audio_into_video
+from subtitle_pipeline.export.formats import SubtitleStyle, to_ass
+from subtitle_pipeline.infrastructure.audio_mux import (
+    build_dub_track,
+    burn_subtitles,
+    mux_audio_into_video,
+)
 from subtitle_pipeline.infrastructure.audio_timing import probe_duration_seconds
 from subtitle_pipeline.infrastructure.tts_edge import (
     OUTPUT_SAMPLE_RATE,
@@ -30,6 +36,26 @@ from subtitle_pipeline.infrastructure.tts_edge import (
 
 MAX_SYNTHESIZE_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 2.0
+
+
+@dataclass
+class DubRenderOptions:
+    """Toan bo tuy chon render cua buoc long tieng - gom tu wizard Upload
+    (giong/toc do/cao do o buoc Giong doc, am luong/ducking o buoc Am thanh,
+    hardsub o buoc Phu de, dinh dang o buoc Xuat). Mac dinh = hanh vi cu
+    (giong mac dinh, xoa tieng goc, khong hardsub, mp4).
+    """
+
+    voice: str | None = None
+    rate_percent: int = 0
+    pitch_hz: int = 0
+    original_volume: float = 0.0  # 0 = xoa tieng goc hoan toan
+    dub_volume: float = 1.0
+    ducking: bool = False
+    output_format: str = "mp4"  # mp4 | mkv
+    burn_subtitles: bool = False
+    subtitle_style: SubtitleStyle = field(default_factory=SubtitleStyle)
+    render_quality: str = "balanced"  # fast | balanced | high (chi khi hardsub)
 
 
 def _total_duration(work_dir: Path, source_video: Path) -> float:
@@ -105,13 +131,13 @@ def dub_and_export(
     work_dir: Path,
     out_dir: Path,
     stem: str,
-    voice: str | None = None,
-    keep_original_audio: bool = False,
+    options: DubRenderOptions | None = None,
 ) -> Path:
+    options = options or DubRenderOptions()
     segment_dir = work_dir / f"dub_{target_language}_segments"
     segment_dir.mkdir(parents=True, exist_ok=True)
 
-    voice_by_speaker = _build_speaker_voice_map(segments, target_language, voice)
+    voice_by_speaker = _build_speaker_voice_map(segments, target_language, options.voice)
 
     raw_clips: list[tuple[float, Path]] = []
     with ExitStack() as stack:
@@ -124,7 +150,12 @@ def dub_and_export(
             seg_voice = voice_by_speaker[seg.speaker]
             if seg_voice not in synthesizers:
                 synthesizers[seg_voice] = stack.enter_context(
-                    EdgeTTSSynthesizer(target_language, voice=seg_voice)
+                    EdgeTTSSynthesizer(
+                        target_language,
+                        voice=seg_voice,
+                        rate_percent=options.rate_percent,
+                        pitch_hz=options.pitch_hz,
+                    )
                 )
             tts = synthesizers[seg_voice]
 
@@ -139,10 +170,33 @@ def dub_and_export(
     build_dub_track(raw_clips, total_duration, OUTPUT_SAMPLE_RATE, dub_track_path)
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    output_path = out_dir / f"{stem}.{target_language}.dubbed.mp4"
-    mux_audio_into_video(
-        source_video, dub_track_path, output_path, keep_original_audio=keep_original_audio
-    )
+    output_path = out_dir / f"{stem}.{target_language}.dubbed.{options.output_format}"
+
+    if options.burn_subtitles:
+        # Mux ra file trung gian trong work_dir, roi gan cung phu de (styled
+        # ASS sinh tu chinh segments da dich) vao file cuoi cung - buoc nay
+        # re-encode video nen cham hon han mux thuong.
+        intermediate = work_dir / f"dubbed_nosub.{options.output_format}"
+        mux_audio_into_video(
+            source_video,
+            dub_track_path,
+            intermediate,
+            original_volume=options.original_volume,
+            dub_volume=options.dub_volume,
+            ducking=options.ducking,
+        )
+        ass_path = work_dir / f"burn_{target_language}.ass"
+        ass_path.write_text(to_ass(segments, options.subtitle_style), encoding="utf-8")
+        burn_subtitles(intermediate, ass_path, output_path, quality=options.render_quality)
+    else:
+        mux_audio_into_video(
+            source_video,
+            dub_track_path,
+            output_path,
+            original_volume=options.original_volume,
+            dub_volume=options.dub_volume,
+            ducking=options.ducking,
+        )
 
     shutil.rmtree(work_dir, ignore_errors=True)
     return output_path

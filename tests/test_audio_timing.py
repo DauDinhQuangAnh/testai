@@ -33,3 +33,14 @@ def test_zero_or_negative_factor_raises():
         _clamp_atempo_factors(0.0)
     with pytest.raises(ValueError):
         _clamp_atempo_factors(-1.0)
+
+
+def test_trim_command_cuts_first_seconds_with_stream_copy():
+    from pathlib import Path
+
+    from subtitle_pipeline.infrastructure.audio import _build_trim_command
+
+    cmd = _build_trim_command(Path("in.mp4"), Path("out.mp4"), 60)
+
+    assert cmd[cmd.index("-t") + 1] == "60"
+    assert cmd[cmd.index("-c") + 1] == "copy"

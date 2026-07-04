@@ -89,14 +89,116 @@ def default_voice(language: str) -> str:
     return next(iter(VOICE_OPTIONS[language].values()))
 
 
+# Tag phong cach cho tung giong (hien o UI de nguoi dung chon theo muc dich).
+# Giong khong co trong dict nay hien tag chung "Đa dụng".
+VOICE_STYLES: dict[str, str] = {
+    "vi-VN-HoaiMyNeural": "Kể chuyện, tin tức",
+    "vi-VN-NamMinhNeural": "Tin tức, trang trọng",
+    "en-US-AriaNeural": "Tin tức, tự nhiên",
+    "en-US-GuyNeural": "Tin tức, quảng cáo",
+    "en-US-JennyNeural": "Trợ lý, thân thiện",
+    "en-US-AvaMultilingualNeural": "Trò chuyện, trẻ trung",
+    "en-US-EmmaMultilingualNeural": "Trò chuyện, nhẹ nhàng",
+    "en-US-AndrewMultilingualNeural": "Kể chuyện, ấm",
+    "en-US-BrianMultilingualNeural": "Trò chuyện, điềm tĩnh",
+}
+
+DEFAULT_VOICE_STYLE = "Đa dụng"
+
+
+def voice_catalog(language: str) -> list[dict]:
+    """Danh sach giong cho UI: moi giong 1 dict {label, id, gender, style,
+    recommended}. Giong ban dia cua ngon ngu (id bat dau bang prefix vd.
+    `vi-VN`) duoc danh dau recommended=True - phat am chuan hon han giong
+    multilingual (von uu tien tieng Anh/Au), UI nen hien nhom nay len dau.
+    """
+    if language not in VOICE_OPTIONS:
+        raise ValueError(f"Ngôn ngữ TTS chưa hỗ trợ: {language}")
+    native_prefixes = {
+        "vi": "vi-",
+        "en": "en-",
+        "zh": "zh-",
+        "ja": "ja-",
+        "ko": "ko-",
+        "fr": "fr-",
+        "es": "es-",
+    }
+    prefix = native_prefixes[language]
+    catalog = []
+    for label, voice_id in VOICE_OPTIONS[language].items():
+        is_native = voice_id.startswith(prefix) and "Multilingual" not in voice_id
+        catalog.append(
+            {
+                "label": label,
+                "id": voice_id,
+                "gender": "nữ" if "nữ" in label else "nam",
+                "style": VOICE_STYLES.get(voice_id, DEFAULT_VOICE_STYLE),
+                "recommended": is_native,
+            }
+        )
+    # Giong de xuat (ban dia) len dau, giu nguyen thu tu goc trong tung nhom.
+    return sorted(catalog, key=lambda v: not v["recommended"])
+
+
+# Cau mau de "nghe thu" giong ngay trong UI truoc khi chay job that.
+SAMPLE_SENTENCES = {
+    "vi": "Xin chào, đây là giọng đọc thử của công cụ lồng tiếng.",
+    "en": "Hello, this is a voice preview from the dubbing tool.",
+    "zh": "你好，这是配音工具的语音试听。",
+    "ja": "こんにちは、これは吹き替えツールの音声プレビューです。",
+    "ko": "안녕하세요, 더빙 도구의 음성 미리듣기입니다.",
+    "fr": "Bonjour, ceci est un aperçu vocal de l'outil de doublage.",
+    "es": "Hola, esta es una vista previa de voz de la herramienta de doblaje.",
+}
+
+
+def _format_rate(rate_percent: int) -> str:
+    return f"{rate_percent:+d}%"
+
+
+def _format_pitch(pitch_hz: int) -> str:
+    return f"{pitch_hz:+d}Hz"
+
+
+def synthesize_sample(language: str, voice: str, rate_percent: int = 0, pitch_hz: int = 0) -> bytes:
+    """Sinh 1 doan mp3 ngan (cau mau) de nghe thu giong o UI - tra ve bytes
+    dua thang vao `st.audio` (mp3 khong can chuyen wav nhu clip long tieng
+    that). Chay dong bo trong process Streamlit, can internet.
+    """
+    import asyncio
+    import tempfile
+
+    import edge_tts
+
+    text = SAMPLE_SENTENCES.get(language, SAMPLE_SENTENCES["en"])
+    communicate = edge_tts.Communicate(
+        text, voice, rate=_format_rate(rate_percent), pitch=_format_pitch(pitch_hz)
+    )
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        asyncio.run(communicate.save(str(tmp_path)))
+        return tmp_path.read_bytes()
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
 # Chuan hoa 1 sample rate co dinh cho moi clip xuat ra (ep bang ffmpeg khi
 # chuyen mp3 -> wav ben duoi) de build_dub_track khong can doan/resample.
 OUTPUT_SAMPLE_RATE = 24000
 
 
 class EdgeTTSSynthesizer:
-    def __init__(self, language: str, voice: str | None = None):
+    def __init__(
+        self,
+        language: str,
+        voice: str | None = None,
+        rate_percent: int = 0,
+        pitch_hz: int = 0,
+    ):
         self._voice = voice or default_voice(language)
+        self._rate = _format_rate(rate_percent)
+        self._pitch = _format_pitch(pitch_hz)
 
     def __enter__(self) -> "EdgeTTSSynthesizer":
         return self
@@ -116,7 +218,7 @@ class EdgeTTSSynthesizer:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         mp3_path = output_path.with_suffix(".mp3")
 
-        communicate = edge_tts.Communicate(text, self._voice)
+        communicate = edge_tts.Communicate(text, self._voice, rate=self._rate, pitch=self._pitch)
         asyncio.run(communicate.save(str(mp3_path)))
 
         # Chuyen mp3 (dinh dang edge-tts tra ve) sang wav PCM chuan, ep sample

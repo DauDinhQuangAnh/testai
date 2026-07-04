@@ -49,6 +49,19 @@ class JobRepository:
         with self._session_factory() as session:
             return session.scalars(select(Job).order_by(Job.created_at.desc())).all()
 
+    def update_source(self, job_id: str, filename: str, input_path: Path) -> None:
+        """Cap nhat ten file + duong dan input THAT sau khi worker tai video
+        tu URL xong (job tao tu URL ban dau chi co filename=URL placeholder,
+        xem app/jobs/tasks.py stage "download").
+        """
+        with self._session_factory() as session:
+            job = session.get(Job, job_id)
+            if job is None:
+                return
+            job.filename = filename
+            job.input_path = str(input_path)
+            session.commit()
+
     def delete(self, job_id: str) -> None:
         with self._session_factory() as session:
             job = session.get(Job, job_id)

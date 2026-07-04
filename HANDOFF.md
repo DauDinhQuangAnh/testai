@@ -537,6 +537,106 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
 6. Bao lai loi/log cu the (dac biet loi ket noi edge-tts, hoac loi filter
    `atempo` chain) de sua tiep.
 
+## 6j. Wizard "Tao video" 6 buoc (nang cap lon 2026-07-03, tham chieu UI VietDub)
+
+**Trang thai:** Code xong, `pytest` 76/76 pass + `ruff` sach (chay that tren
+may dev). **CHUA chay thu end-to-end qua UI** - can restart Celery worker +
+Streamlit roi thu theo muc "Viec can lam" ben duoi.
+
+Nguoi dung dua screenshot app "VietDub" lam tham chieu, yeu cau nang cap
+Upload thanh wizard 6 buoc voi tinh nang tuong ung. Da viet lai
+`app/pages/1_Upload.py` thanh 6 tab (`st.tabs` - ben hon fake-stepper khi
+Streamlit rerun); TOAN BO lua chon gom vao 1 dict `options` truyen cho
+`process_video_job(job_id, options)` va luu `job_config.json` vao thu muc
+job (trace + nut "Tao lai voi cau hinh nay" o Dashboard).
+
+**Buoc 1 - Nguon:**
+- Dan URL YouTube/Douyin/TikTok... thay vi phai upload file: adapter moi
+  `subtitle_pipeline/infrastructure/downloader_ytdlp.py` (goi
+  `sys.executable -m yt_dlp` de chac dung venv; `--restrict-filenames`;
+  chat luong "720p"/"best"). Tai trong WORKER (stage moi "download", them
+  vao `PIPELINE_STAGES`); job tao voi `filename=URL` placeholder, worker
+  cap nhat ten/duong dan that qua `JobRepository.update_source()` moi.
+- Kiem thu doan ngan: chon 60s/120s dau -> worker cat bang ffmpeg
+  (`trim_media`/`_build_trim_command` moi trong `infrastructure/audio.py`,
+  `-c copy` khong re-encode).
+- Ep cung ngon ngu nguon (mac dinh van auto-detect):
+  `FasterWhisperTranscriber` nhan them `language=` (None = auto), tasks
+  override `transcriber_factory` khi user ep.
+
+**Buoc 2 - Giong doc:**
+- `voice_catalog(language)` moi trong `tts_edge.py`: moi giong co gender/
+  style tag (`VOICE_STYLES`)/co `recommended` (giong ban dia len dau, badge
+  sao o UI).
+- Toc do noi (-50%..+50%) + cao do (-20Hz..+20Hz): `EdgeTTSSynthesizer`
+  nhan `rate_percent`/`pitch_hz`, truyen vao `edge_tts.Communicate(rate=,
+  pitch=)`.
+- Nut "Nghe thu giong nay": `synthesize_sample()` moi - sinh mp3 cau mau
+  ngay trong Streamlit (can internet), cache theo (giong, rate, pitch)
+  trong session_state.
+
+**Buoc 3 - Dich:**
+- Bang thuat ngu: module moi `application/glossary.py` -
+  `parse_glossary`/`mask_terms`/`restore_terms` (thay term nguon bang token
+  `<<T0>>` truoc khi NLLB dich, thay token bang term dich sau) - cach kha
+  thi duy nhat ep NLLB giu dung thuat ngu. **RUI RO chua verify: NLLB co
+  the "dich" ca token** - restore da dung regex chiu khoang trang chen
+  giua de giam rui ro, can test that.
+- Preset trinh bay ("Can bang"/"Suc tich"/"Thoai mai") map sang
+  `max_chars_per_line`/`max_lines` cua `optimize_segments` (tham so moi
+  cua `translate_and_export`).
+- **GIOI HAN TRUNG THUC:** "dich theo ngu canh/giong dieu" kieu VietDub can
+  LLM - NLLB khong nhan chi dan. Ghi ro o UI; LLM translator adapter la
+  viec sau (can API key).
+
+**Buoc 4 - Phu de:**
+- `SubtitleStyle` dataclass moi trong `export/formats.py` (font/co chu/mau
+  chu/mau+do day vien/vi tri tren-giua-duoi/hop nen dac/do mo nen);
+  `to_ass(segments, style)` - mac dinh khop CHINH XAC header cu (co test
+  chot: `test_to_ass_default_style_matches_legacy_header`).
+- Hardsub: `burn_subtitles()` trong `audio_mux.py` - ffmpeg `ass=` filter,
+  re-encode libx264 CRF theo preset. LUU Y Windows: filter `ass=` parse
+  loi duong dan co `C:\` -> lenh chay voi `cwd=thu muc chua .ass` va chi
+  truyen TEN file (xem `_build_burn_command`).
+- Xem truoc tinh bang HTML/CSS mo phong style (khong can ffmpeg).
+
+**Buoc 5 - Am thanh & Xuat:**
+- `_build_mux_command` viet lai: `original_volume` (slider 0-100%, 0 = xoa
+  tieng goc - GOP 2 radio cu thanh 1 slider), `dub_volume` (50-150%),
+  `ducking` (ffmpeg `sidechaincompress` + `asplit` - tu nen tieng goc khi
+  giong long tieng dang noi). Bo tham so `keep_original_audio` cu.
+- Dinh dang mp4/mkv + preset chat luong dung (`QUALITY_CRF`
+  fast/balanced/high - chi ap dung khi hardsub).
+
+**Buoc 6 - Xem lai:** the tom tat tung nhom cau hinh + nut "Tao va khoi
+chay". Dashboard co them nut "Tao lai voi cau hinh nay" (doc
+`job_config.json`; job URL thi worker tu tai lai, job file thi copy file
+goc sang thu muc job moi - khong tham chieu chung, xoa job cu khong hong
+job moi).
+
+**Plumbing:** `dub_and_export()` doi sang nhan `DubRenderOptions` dataclass
+(voice/rate/pitch/volumes/ducking/format/hardsub/style/quality) thay cho
+tham so roi. `dub_job` (Editor) giu signature don gian cu, map
+`keep_original_audio` -> `original_volume=0.3`. Them dependency `yt-dlp`.
+
+**Test moi/cap nhat:** `test_downloader.py`, `test_glossary.py`,
+`test_export_formats.py` (styled ASS), `test_audio_mux.py` (ducking/volume/
+burn), `test_tts_voices.py` (catalog/rate/pitch), `test_audio_timing.py`
+(trim), `test_job_repository.py` (update_source), `test_dub.py`
+(DubRenderOptions).
+
+**Viec can lam tren may dev that:** restart Celery worker + Streamlit, roi:
+1. Dan 1 link YouTube ngan, che do "Chay thu 60 giay dau" -> xac nhan ra
+   video long tieng (stage "download" hien tren Dashboard).
+2. Buoc 2: bam "Nghe thu giong nay" voi vai giong (dac biet giong
+   multilingual doc tieng Viet - chua danh gia chat luong that).
+3. Bat "Giam am goc khi co loi thoai" + volume goc 30% -> nghe thu tieng
+   goc co tu nho di khi giong dich noi khong.
+4. Bat "Gan phu de vao video" voi style tuy chinh -> xac nhan chu ve dung
+   vi tri/mau/co; render cham hon ro ret la binh thuong (re-encode).
+5. Nhap bang thuat ngu 1-2 muc -> kiem tra term duoc giu dung trong ban
+   dich (rui ro token bi NLLB dich - xem Buoc 3 o tren).
+
 ## 7. Quyet dinh moi / thay doi so voi ban dau
 
 - **2026-07-01 - Bo qua thu tu roadmap goc:** Nguoi dung chon viet Phase 2 truoc
@@ -1049,3 +1149,22 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
   - **Chua kiem chung tren video that nhieu nguoi noi** (can video co it
     nhat 2 speaker qua diarization, tuc can `HF_TOKEN` hop le va video co
     doi thoai that).
+- 2026-07-03 (lan 11): **Nang cap lon - wizard "Tao video" 6 buoc kieu
+  VietDub** theo yeu cau nguoi dung (dua screenshot lam tham chieu). Xem
+  chi tiet day du o muc 6j moi. Tom tat: (1) Nguon: dan URL
+  YouTube/Douyin (yt-dlp, stage "download" trong worker,
+  `JobRepository.update_source`), che do chay thu 60/120s dau
+  (`trim_media`), ep cung ngon ngu nguon; (2) Giong doc:
+  `voice_catalog()` co gender/style/recommended, slider toc do/cao do
+  (edge-tts rate/pitch), nut nghe thu (`synthesize_sample`); (3) Dich:
+  bang thuat ngu (`application/glossary.py` mask/restore), preset trinh
+  bay map sang tham so optimize; (4) Phu de: `SubtitleStyle` dataclass +
+  `to_ass(style)`, hardsub (`burn_subtitles`, luu y cwd tren Windows),
+  preview HTML; (5) Am thanh & Xuat: slider am luong goc/giong (bo radio
+  keep_original cu), ducking sidechaincompress, mp4/mkv + CRF preset; (6)
+  Xem lai: the tom tat + `job_config.json` + nut "Tao lai voi cau hinh
+  nay" o Dashboard. `process_video_job` doi sang nhan dict `options`;
+  `dub_and_export` nhan `DubRenderOptions`. Them dep `yt-dlp`. **76/76
+  test pass, ruff sach; CHUA chay thu end-to-end qua UI** (xem checklist
+  muc 6j). GIOI HAN trung thuc: "dich theo ngu canh" that su can LLM -
+  chua lam, da ghi ro o UI + muc 6j.

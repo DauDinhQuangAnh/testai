@@ -14,10 +14,16 @@ from subtitle_pipeline.infrastructure.gpu import release_gpu_memory
 
 
 class FasterWhisperTranscriber:
-    def __init__(self, model_size: str, compute_type: str, device: str):
+    def __init__(
+        self, model_size: str, compute_type: str, device: str, language: str | None = None
+    ):
         self._model_size = model_size
         self._compute_type = compute_type
         self._device = device
+        # None = auto-detect (mac dinh); set khi nguoi dung ep cung ngon ngu
+        # nguon o buoc Nguon cua wizard Upload (video ngon ngu hiem/lan tieng
+        # ma auto-detect hay doan sai).
+        self._language = language
         self._model = None
 
     def __enter__(self) -> "FasterWhisperTranscriber":
@@ -38,6 +44,8 @@ class FasterWhisperTranscriber:
         # video nguon tieng Anh nhung PIPELINE_LANGUAGE=vi de dinh huong dich
         # cuoi cung sang tieng Viet). `info.language` duoc tra ve cho cac
         # buoc sau (align/dich) dung ngon ngu THAT, xem HANDOFF.md.
-        segments, info = self._model.transcribe(str(audio_path), beam_size=5, vad_filter=True)
+        segments, info = self._model.transcribe(
+            str(audio_path), beam_size=5, vad_filter=True, language=self._language
+        )
         result = [TranscriptSegment(start=s.start, end=s.end, text=s.text) for s in segments]
         return result, info.language

@@ -3,7 +3,11 @@
 from pathlib import Path
 
 import subtitle_pipeline.application.dub as dub
-from subtitle_pipeline.application.dub import _build_speaker_voice_map, _clean_text_for_speech
+from subtitle_pipeline.application.dub import (
+    DubRenderOptions,
+    _build_speaker_voice_map,
+    _clean_text_for_speech,
+)
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.infrastructure.tts_edge import VOICE_OPTIONS, default_voice
 
@@ -82,7 +86,7 @@ def test_dub_uses_raw_clips_without_stretching(tmp_path, monkeypatch):
     class FakeTTS:
         sample_rate = 24000
 
-        def __init__(self, language: str, voice: str | None = None):
+        def __init__(self, language: str, voice: str | None = None, **kwargs):
             self.language = language
             self.voice = voice
 
@@ -100,7 +104,7 @@ def test_dub_uses_raw_clips_without_stretching(tmp_path, monkeypatch):
         captured["sample_rate"] = sample_rate
         output_path.write_bytes(b"fake track")
 
-    def fake_mux_audio_into_video(video_path, audio_path, output_path, keep_original_audio=False):
+    def fake_mux_audio_into_video(video_path, audio_path, output_path, **kwargs):
         output_path.write_bytes(b"fake video")
 
     monkeypatch.setattr(dub, "EdgeTTSSynthesizer", FakeTTS)
@@ -134,7 +138,7 @@ def test_dub_creates_one_synthesizer_per_distinct_speaker(tmp_path, monkeypatch)
     class FakeTTS:
         sample_rate = 24000
 
-        def __init__(self, language: str, voice: str | None = None):
+        def __init__(self, language: str, voice: str | None = None, **kwargs):
             created_voices.append(voice)
             self.voice = voice
 
@@ -171,7 +175,7 @@ def test_dub_creates_one_synthesizer_per_distinct_speaker(tmp_path, monkeypatch)
         work_dir=work_dir,
         out_dir=out_dir,
         stem="input",
-        voice="vi-VN-HoaiMyNeural",
+        options=DubRenderOptions(voice="vi-VN-HoaiMyNeural"),
     )
 
     # 2 nguoi noi khac nhau -> 2 synthesizer (SPEAKER_00 tai su dung, khong

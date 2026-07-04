@@ -48,7 +48,7 @@ def build_dub_track(
     sf.write(str(output_path), track, sample_rate)
 
 
-# Muc giam am luong tieng goc o che do giu tieng: 0.3 = giam 70% (kieu
+# Muc giam am luong tieng goc mac dinh khi giu tieng: 0.3 = giam 70% (kieu
 # thuyet minh/voice-over phim tai lieu - giu khong khi nen, de tieng dich len).
 KEEP_ORIGINAL_VOLUME = 0.3
 
@@ -57,27 +57,51 @@ def _build_mux_command(
     video_path: Path,
     audio_path: Path,
     output_path: Path,
-    keep_original_audio: bool,
     original_volume: float,
+    dub_volume: float = 1.0,
+    ducking: bool = False,
 ) -> list[str]:
     """Ham thuan dung lenh ffmpeg (tach rieng de test khong can ffmpeg that).
 
-    - keep_original_audio=False: thay audio hoan toan bang track long tieng.
-    - keep_original_audio=True: tron tieng goc (giam con `original_volume`)
-      voi track long tieng - `amix normalize=0` de amix khong tu chia deu am
-      luong 2 track (mac dinh amix chia 1/n lam ca 2 cung nho di).
-      LUU Y: che do nay yeu cau video goc PHAI co audio stream (`0:a:0`) -
-      video cam se loi ffmpeg; che do thay the thi khong sao.
+    - original_volume=0: thay audio hoan toan bang track long tieng (che do
+      "xoa tieng goc" cu - gio la 1 diem tren slider thay vi radio rieng).
+    - original_volume>0: tron tieng goc (giam con muc nay) voi track long
+      tieng - `amix normalize=0` de amix khong tu chia deu am luong 2 track.
+      LUU Y: yeu cau video goc PHAI co audio stream (`0:a:0`).
+    - dub_volume: he so am luong track long tieng (1.0 = giu nguyen).
+    - ducking: tu dong nen tieng goc XUONG THEM moi khi giong long tieng dang
+      noi (ffmpeg sidechaincompress, track dub lam sidechain) - tieng goc chi
+      to len o khoang lang giua cac cau, kieu thuyet minh chuyen nghiep.
+      Can `asplit` vi track dub dung 2 lan (lam sidechain + tron vao output).
     """
     base = ["ffmpeg", "-y", "-i", str(video_path), "-i", str(audio_path)]
-    if keep_original_audio:
+    if original_volume <= 0:
+        if dub_volume == 1.0:
+            audio_args = ["-map", "0:v:0", "-map", "1:a:0"]
+        else:
+            audio_args = [
+                "-filter_complex",
+                f"[1:a:0]volume={dub_volume}[aout]",
+                "-map",
+                "0:v:0",
+                "-map",
+                "[aout]",
+            ]
+    elif ducking:
         filter_complex = (
-            f"[0:a:0]volume={original_volume}[orig];"
-            f"[orig][1:a:0]amix=inputs=2:duration=longest:normalize=0[aout]"
+            f"[1:a:0]volume={dub_volume},asplit=2[sc][dub];"
+            f"[0:a:0]volume={original_volume}[bg];"
+            f"[bg][sc]sidechaincompress=threshold=0.02:ratio=12:attack=50:release=400[duck];"
+            f"[duck][dub]amix=inputs=2:duration=longest:normalize=0[aout]"
         )
         audio_args = ["-filter_complex", filter_complex, "-map", "0:v:0", "-map", "[aout]"]
     else:
-        audio_args = ["-map", "0:v:0", "-map", "1:a:0"]
+        filter_complex = (
+            f"[1:a:0]volume={dub_volume}[dub];"
+            f"[0:a:0]volume={original_volume}[bg];"
+            f"[bg][dub]amix=inputs=2:duration=longest:normalize=0[aout]"
+        )
+        audio_args = ["-filter_complex", filter_complex, "-map", "0:v:0", "-map", "[aout]"]
     return [*base, *audio_args, "-c:v", "copy", "-c:a", "aac", "-shortest", str(output_path)]
 
 
@@ -85,11 +109,52 @@ def mux_audio_into_video(
     video_path: Path,
     audio_path: Path,
     output_path: Path,
-    keep_original_audio: bool = False,
-    original_volume: float = KEEP_ORIGINAL_VOLUME,
+    original_volume: float = 0.0,
+    dub_volume: float = 1.0,
+    ducking: bool = False,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = _build_mux_command(
-        video_path, audio_path, output_path, keep_original_audio, original_volume
+        video_path, audio_path, output_path, original_volume, dub_volume, ducking
     )
     subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+# Preset chat luong render (chi dung khi phai re-encode video, tuc hardsub -
+# khong hardsub thi video stream duoc copy nguyen ven, nhanh hon nhieu).
+QUALITY_CRF = {"fast": 28, "balanced": 23, "high": 18}
+
+
+def _build_burn_command(video_path: Path, ass_filename: str, output_path: Path, crf: int):
+    # Chi truyen TEN file .ass (khong phai duong dan day du) - lenh nay phai
+    # chay voi cwd = thu muc chua file .ass, vi filter `ass=` cua ffmpeg parse
+    # dau `:` va `\` trong duong dan Windows rat loi (C:\... bi hieu nham la
+    # tham so filter). Xem burn_subtitles().
+    return [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(video_path),
+        "-vf",
+        f"ass={ass_filename}",
+        "-c:v",
+        "libx264",
+        "-crf",
+        str(crf),
+        "-c:a",
+        "copy",
+        str(output_path),
+    ]
+
+
+def burn_subtitles(
+    video_path: Path, ass_path: Path, output_path: Path, quality: str = "balanced"
+) -> None:
+    """Gan cung (hardsub) phu de .ass vao video - re-encode video stream bang
+    libx264 voi CRF theo preset `quality` (xem QUALITY_CRF), audio copy
+    nguyen ven. Cham hon mux thuong dang ke (phai encode lai toan bo hinh).
+    """
+    crf = QUALITY_CRF.get(quality, QUALITY_CRF["balanced"])
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = _build_burn_command(video_path.resolve(), ass_path.name, output_path.resolve(), crf)
+    subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=str(ass_path.parent))
