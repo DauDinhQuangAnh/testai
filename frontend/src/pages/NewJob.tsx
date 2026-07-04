@@ -6,7 +6,7 @@ import NavBar from "../components/NavBar";
 import { api } from "../lib/api";
 import {
   FONT_CHOICES,
-  POSITION_CHOICES,
+  languageName,
   RENDER_QUALITY_CHOICES,
   TRANSLATE_PRESETS,
   TRIM_CHOICES,
@@ -29,7 +29,20 @@ export default function NewJob() {
   const [file, setFile] = useState<File | null>(null);
   const [presetIndex, setPresetIndex] = useState(0);
   const [sampleUrl, setSampleUrl] = useState<string | null>(null);
+  const [draggingSubtitle, setDraggingSubtitle] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  const moveSubtitleTo = (clientX: number, clientY: number) => {
+    const rect = previewRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.min(100, Math.max(0, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((clientY - rect.top) / rect.height) * 100));
+    setOptions((o) => ({
+      ...o,
+      subtitle: { ...o.subtitle, style: { ...o.subtitle.style, position_x: x, position_y: y } },
+    }));
+  };
 
   const patch = (updates: Partial<JobOptions>) => setOptions((o) => ({ ...o, ...updates }));
 
@@ -230,7 +243,7 @@ export default function NewJob() {
                         <option value="auto">Tự phát hiện (khuyên dùng)</option>
                         {languages?.sources.map((l) => (
                           <option key={l} value={l}>
-                            {l}
+                            {languageName(l)}
                           </option>
                         ))}
                       </select>
@@ -273,7 +286,7 @@ export default function NewJob() {
                         >
                           {languages?.targets.map((l) => (
                             <option key={l} value={l}>
-                              {l}
+                              {languageName(l)}
                             </option>
                           ))}
                         </select>
@@ -373,6 +386,28 @@ export default function NewJob() {
               {step === 2 && (
                 <div className="space-y-5">
                   <h2 className="text-lg font-semibold">Mục đích dịch</h2>
+                  <p className="rounded-lg bg-cream px-4 py-2 text-sm text-ink-soft">
+                    {options.dubbing.enabled ? (
+                      <>
+                        Đang dịch/lồng tiếng sang{" "}
+                        <strong>{languageName(options.dubbing.target_language)}</strong> — đổi
+                        ngôn ngữ ở{" "}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => setStep(1)}
+                        >
+                          Bước 2 · Giọng đọc
+                        </button>
+                        .
+                      </>
+                    ) : (
+                      <>
+                        Lồng tiếng đang <strong>tắt</strong> (Bước 2) nên bước này sẽ không có
+                        tác dụng — chỉ phụ đề gốc được xuất ra.
+                      </>
+                    )}
+                  </p>
                   <div>
                     <label className="label">Kiểu trình bày bản dịch</label>
                     <div className="flex flex-wrap gap-2">
@@ -411,6 +446,26 @@ export default function NewJob() {
                     <p className="mt-1 text-xs text-ink-soft">
                       Ép giữ đúng thuật ngữ khi dịch. Dịch theo ngữ cảnh sâu (LLM) sẽ bổ sung sau
                       — engine hiện tại là NLLB chạy local.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="label">
+                      Bảng phát âm cho giọng lồng tiếng (mỗi dòng: từ = cách đọc)
+                    </label>
+                    <textarea
+                      className="input h-24 font-mono text-sm"
+                      placeholder={"SQL = ét quy eo\nAPI = ây pi ai"}
+                      value={options.translation.pronunciation}
+                      onChange={(e) =>
+                        patch({
+                          translation: { ...options.translation, pronunciation: e.target.value },
+                        })
+                      }
+                    />
+                    <p className="mt-1 text-xs text-ink-soft">
+                      Chỉ đổi cách <strong>giọng đọc phát âm</strong> khi lồng tiếng — phụ đề vẫn
+                      hiển thị nguyên chữ gốc. Ghi đè lên bộ quy tắc mặc định của hệ thống (vd.
+                      SQL → "ét quy eo") nếu trùng từ.
                     </p>
                   </div>
                 </div>
@@ -492,48 +547,23 @@ export default function NewJob() {
                       />
                     </div>
                     <div>
-                      <label className="label">Màu viền</label>
+                      <label className="label">Màu nền</label>
                       <input
                         type="color"
                         className="h-10 w-full cursor-pointer rounded-lg border border-line"
-                        value={options.subtitle.style.outline_color}
+                        value={options.subtitle.style.background_color}
                         onChange={(e) =>
                           patch({
                             subtitle: {
                               ...options.subtitle,
                               style: {
                                 ...options.subtitle.style,
-                                outline_color: e.target.value,
+                                background_color: e.target.value,
                               },
                             },
                           })
                         }
                       />
-                    </div>
-                    <div>
-                      <label className="label">Vị trí</label>
-                      <div className="flex gap-2">
-                        {POSITION_CHOICES.map((p) => (
-                          <button
-                            key={p.value}
-                            onClick={() =>
-                              patch({
-                                subtitle: {
-                                  ...options.subtitle,
-                                  style: { ...options.subtitle.style, position: p.value },
-                                },
-                              })
-                            }
-                            className={
-                              options.subtitle.style.position === p.value
-                                ? "btn-primary"
-                                : "btn-ghost"
-                            }
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                     <label className="flex items-center gap-3 self-end pb-2">
                       <input
@@ -554,32 +584,44 @@ export default function NewJob() {
                   </div>
 
                   {/* Preview */}
-                  <div
-                    className="flex aspect-video w-full items-center justify-center rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 p-6"
-                    style={{
-                      alignItems:
-                        options.subtitle.style.position === "top"
-                          ? "flex-start"
-                          : options.subtitle.style.position === "middle"
-                            ? "center"
-                            : "flex-end",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: options.subtitle.style.font,
-                        fontSize: Math.max(14, options.subtitle.style.font_size / 2.5),
-                        color: options.subtitle.style.text_color,
-                        textShadow: `0 0 ${Math.max(1, options.subtitle.style.outline_width)}px ${options.subtitle.style.outline_color}, 0 0 ${Math.max(1, options.subtitle.style.outline_width) * 2}px ${options.subtitle.style.outline_color}`,
-                        background: options.subtitle.style.opaque_box
-                          ? "rgba(0,0,0,0.75)"
-                          : "transparent",
-                        padding: options.subtitle.style.opaque_box ? "4px 12px" : 0,
-                        borderRadius: 4,
+                  <div>
+                    <p className="mb-2 text-xs text-ink-soft">
+                      Kéo phụ đề bên dưới để đặt vào bất kỳ vị trí nào trên khung hình.
+                    </p>
+                    <div
+                      ref={previewRef}
+                      className="relative aspect-video w-full touch-none select-none overflow-hidden rounded-xl bg-gradient-to-br from-gray-700 to-gray-900"
+                      onPointerMove={(e) => {
+                        if (draggingSubtitle) moveSubtitleTo(e.clientX, e.clientY);
                       }}
+                      onPointerUp={() => setDraggingSubtitle(false)}
+                      onPointerLeave={() => setDraggingSubtitle(false)}
                     >
-                      Bản dịch giữ đúng ngữ cảnh và vừa khung hình.
-                    </span>
+                      <span
+                        onPointerDown={(e) => {
+                          e.currentTarget.setPointerCapture(e.pointerId);
+                          setDraggingSubtitle(true);
+                          moveSubtitleTo(e.clientX, e.clientY);
+                        }}
+                        className="absolute cursor-grab whitespace-nowrap active:cursor-grabbing"
+                        style={{
+                          left: `${options.subtitle.style.position_x}%`,
+                          top: `${options.subtitle.style.position_y}%`,
+                          transform: "translate(-50%, -50%)",
+                          fontFamily: options.subtitle.style.font,
+                          fontSize: Math.max(14, options.subtitle.style.font_size / 2.5),
+                          color: options.subtitle.style.text_color,
+                          textShadow: "0 0 2px #000, 0 0 4px #000",
+                          background: options.subtitle.style.opaque_box
+                            ? options.subtitle.style.background_color
+                            : "transparent",
+                          padding: options.subtitle.style.opaque_box ? "4px 12px" : 0,
+                          borderRadius: 4,
+                        }}
+                      >
+                        Bản dịch giữ đúng ngữ cảnh và vừa khung hình.
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -700,9 +742,12 @@ export default function NewJob() {
                         {file?.name ?? "(chưa chọn file)"}
                       </p>
                       <p className="text-xs text-ink-soft">
-                        {options.source.source_language ?? "auto"} →{" "}
+                        {options.source.source_language
+                          ? languageName(options.source.source_language)
+                          : "Tự phát hiện"}{" "}
+                        →{" "}
                         {options.dubbing.enabled
-                          ? options.dubbing.target_language
+                          ? languageName(options.dubbing.target_language)
                           : "chỉ phụ đề"}
                         {options.source.trim_seconds
                           ? ` · ${options.source.trim_seconds}s đầu`
@@ -731,6 +776,12 @@ export default function NewJob() {
                             .split("\n")
                             .filter((l) => l.includes("=")).length
                         }{" "}
+                        mục · Bảng phát âm riêng:{" "}
+                        {
+                          options.translation.pronunciation
+                            .split("\n")
+                            .filter((l) => l.includes("=")).length
+                        }{" "}
                         mục
                       </p>
                     </ReviewCard>
@@ -739,8 +790,9 @@ export default function NewJob() {
                         {options.subtitle.burn_in ? "Gắn cứng vào video" : "Xuất file rời"}
                       </p>
                       <p className="text-xs text-ink-soft">
-                        {options.subtitle.style.font} {options.subtitle.style.font_size}px ·{" "}
-                        {options.subtitle.style.position}
+                        {options.subtitle.style.font} {options.subtitle.style.font_size}px · vị
+                        trí ({Math.round(options.subtitle.style.position_x)}%,{" "}
+                        {Math.round(options.subtitle.style.position_y)}%)
                       </p>
                     </ReviewCard>
                     <ReviewCard title="ÂM THANH & ĐẦU RA">

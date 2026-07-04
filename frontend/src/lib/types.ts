@@ -80,6 +80,7 @@ export interface JobOptions {
   };
   translation: {
     glossary: string;
+    pronunciation: string;
     max_chars_per_line: number;
     max_lines: number;
   };
@@ -89,9 +90,10 @@ export interface JobOptions {
       font: string;
       font_size: number;
       text_color: string;
-      outline_color: string;
+      background_color: string;
       outline_width: number;
-      position: "bottom" | "middle" | "top";
+      position_x: number;
+      position_y: number;
       opaque_box: boolean;
     };
   };
@@ -116,16 +118,17 @@ export function defaultOptions(): JobOptions {
       rate_percent: 0,
       pitch_hz: 0,
     },
-    translation: { glossary: "", max_chars_per_line: 42, max_lines: 2 },
+    translation: { glossary: "", pronunciation: "", max_chars_per_line: 42, max_lines: 2 },
     subtitle: {
       burn_in: false,
       style: {
         font: "Arial",
         font_size: 48,
         text_color: "#FFFFFF",
-        outline_color: "#000000",
+        background_color: "#000000",
         outline_width: 2,
-        position: "bottom",
+        position_x: 50,
+        position_y: 90,
         opaque_box: false,
       },
     },

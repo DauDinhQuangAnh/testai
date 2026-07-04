@@ -19,6 +19,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from subtitle_pipeline.application.pronunciation import apply_pronunciation
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.export.formats import SubtitleStyle, to_ass
 from subtitle_pipeline.infrastructure.audio_mux import (
@@ -56,6 +57,10 @@ class DubRenderOptions:
     burn_subtitles: bool = False
     subtitle_style: SubtitleStyle = field(default_factory=SubtitleStyle)
     render_quality: str = "balanced"  # fast | balanced | high (chi khi hardsub)
+    # Tu = cach doc rieng cho TTS (vd. "SQL" -> "ét quy eo") - CHI anh huong
+    # audio, khong doi phu de xuat ra. Da gop san mac dinh JSON + override
+    # rieng cua job (xem application/pronunciation.py, app/jobs/tasks.py).
+    pronunciation: dict[str, str] = field(default_factory=dict)
 
 
 def _total_duration(work_dir: Path, source_video: Path) -> float:
@@ -144,6 +149,8 @@ def dub_and_export(
         synthesizers: dict[str, EdgeTTSSynthesizer] = {}
         for i, seg in enumerate(segments):
             text = _clean_text_for_speech(seg.text)
+            if options.pronunciation:
+                text = apply_pronunciation(text, options.pronunciation)
             if not text:
                 continue
 

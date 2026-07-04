@@ -912,6 +912,76 @@ can deploy that.
    chac chan doc dung file moi - thuc ra `YTDLP_COOKIES_FILE` doc lai moi
    lan tai, khong can restart, nhung restart 1 lan cho chac an toan).
 
+## 6m. Bang phat am rieng cho giong doc long tieng (2026-07-05)
+
+**Trang thai:** Code xong, 94/94 pytest pass (them `tests/test_pronunciation.py`),
+ruff sach, `npm run build` pass. **CHUA nghe thu that voi edge-tts tren may
+dev** - can nguoi dung tao 1 job tieng Viet co tu "SQL" trong cau de xac nhan
+audio doc thanh "ét quy eo" dung nhu ky vong.
+
+**Boi canh:** nguoi dung nhan xet Buoc 3 "Dich" khong co cho chon ngon ngu
+dich (that ra nam o Buoc 2 "Giong doc", chi la khong hien thi lai o Buoc 3
+nen de nham lan), va muon co the tuy chinh CACH PHAT AM cua giong doc TTS cho
+tung tu/thuat ngu - vi du "SQL" thuong doc la "ét quy lờ" nhung muon mac dinh
+la "ét quy eo". Da hoi lai nguoi dung 2 diem truoc khi code:
+- Pham vi anh huong: **CHI giong doc (audio)**, KHONG doi chu hien thi tren
+  phu de (khac voi bang thuat ngu dich hien co - `application/glossary.py` -
+  von giu nguyen CHU VIET khi dich, khong lien quan cach doc).
+- Noi chinh sua: **CA 2** - 1 file JSON mac dinh trong repo (nguoi dung tu
+  sua truc tiep de dung lau dai) VA 1 o nhap tren web (rieng cho 1 job) -
+  uu tien gia tri tren web truoc, thieu thi rot ve JSON mac dinh.
+
+**Kien truc:**
+- `subtitle_pipeline/infrastructure/pronunciation_glossary.json` - file JSON
+  mac dinh, cau truc `{"<ma_ngon_ngu>": {"<tu>": "<cach_doc>"}}`. Hien chi co
+  du lieu cho `"vi"` (nguoi dung xac nhan lam tieng Viet truoc), seed 1 muc
+  vi du `"SQL": "ét quy eo"` - nguoi dung se tu bo sung them qua thoi gian
+  bang cach sua truc tiep file nay (khong can code/deploy lai).
+- `subtitle_pipeline/application/pronunciation.py` (module moi):
+  `load_default_pronunciation(language)` doc file JSON tren;
+  `parse_pronunciation_overrides(text)` parse textarea nguoi dung nhap rieng
+  cho 1 job (cung format `tu = cach doc` voi bang thuat ngu dich, nhung la
+  truong du lieu HOAN TOAN tach biet); `resolve_pronunciation_glossary(
+  language, overrides_text)` gop 2 nguon (override textarea thang qua JSON
+  neu trung tu, khong phan biet hoa thuong); `apply_pronunciation(text,
+  glossary)` thay tu khop nguyen tu (tu dai thay truoc tu ngan, giong
+  logic `glossary.py`).
+- `subtitle_pipeline/application/dub.py`: `DubRenderOptions` them field
+  `pronunciation: dict[str, str]`. Trong `dub_and_export()`, goi
+  `apply_pronunciation()` ngay sau `_clean_text_for_speech()` - TRUOC khi
+  dua text vao `tts.synthesize()` - nen CHI anh huong audio, cac file phu de
+  xuat ra (`translate_and_export()` trong `translate.py`) hoan toan khong
+  doi.
+- `app/jobs/tasks.py`: `_build_dub_options()` (flow chinh tu wizard Upload)
+  goi `resolve_pronunciation_glossary(target_language, translation.get(
+  "pronunciation", ""))` truyen vao `DubRenderOptions`. `dub_job` (Celery
+  task rieng cua Editor, khong co o nhap override) ap dung it nhat bang JSON
+  mac dinh qua `resolve_pronunciation_glossary(target_language)`.
+- Frontend (`frontend/src/lib/types.ts`): `JobOptions.translation` them field
+  `pronunciation: string` (mac dinh rong). `frontend/src/pages/NewJob.tsx`
+  Buoc 3 them:
+  - 1 dong thong tin dau trang hien ro dang dich/long tieng sang ngon ngu
+    nao (doc tu `dubbing.target_language` da chon o Buoc 2) + nut nhay
+    nhanh ve Buoc 2 de doi - giai quyet nhan xet ban dau cua nguoi dung ve
+    viec "khong thay cho chon ngon ngu" o buoc nay. Neu long tieng dang tat,
+    hien canh bao buoc nay khong co tac dung (vi `process_video_job` chi goi
+    `translate_and_export`/`dub_and_export` khi `dubbing.enabled=true`, xem
+    `app/jobs/tasks.py`).
+  - Textarea moi "Bang phat am cho giong long tieng" (mau `SQL = ét quy eo`)
+    ngay duoi o "Bang thuat ngu" hien co, cung dinh dang `tu = cach doc`.
+  - The tom tat o Buoc 6 (Xem lai) them dong dem so muc bang phat am rieng
+    canh dong dem bang thuat ngu.
+
+**Han che/rui ro chua kiem chung:**
+- Chua nghe thu that tren may dev xem edge-tts doc "ét quy eo" co tu nhien
+  hon "SQL" nguyen ban hay khong - day la gia dinh ngon ngu hoc cua nguoi
+  dung, can nguoi dung tu danh gia va bo sung/sua entry trong file JSON neu
+  chua ung y.
+- `apply_pronunciation` dung `\b` (word boundary) - co the khop nham 1 phan
+  cua cau neu tu viet tat trung voi 1 tu thuong (vd. neu sau nay them entry
+  "AI" ma cau co "AI" la viet tat khac ngu canh) - chap nhan duoc o pham vi
+  hien tai (danh sach nho, nguoi dung tu kiem soat noi dung file JSON).
+
 ## 8. Van de dang mo / can quyet dinh
 
 - **Chua co trang "Sua phu de" (Editor) trong UI React** - Streamlit cu co
@@ -1437,3 +1507,44 @@ can deploy that.
   Xac nhan **86/86 pytest pass, ruff sach, `npm run build` pass** (tsc + vite)
   sau khi xoa. Tinh nang trim/kiem thu doan ngan va ep ngon ngu nguon o Buoc 1
   KHONG bi anh huong (van dung cho ca video upload).
+- 2026-07-05 (cung ngay, lan 3): **Vi tri phu de tu do (keo tha) + doi "Mau
+  vien" thanh "Mau nen"** o Buoc 4 wizard (theo yeu cau nguoi dung). Truoc do
+  vi tri chi co 3 nut co dinh (Duoi/Giua/Tren, canh giua ngang) va o mau chi
+  chinh duoc mau vien chu (khong chinh duoc mau hop nen). Thay doi:
+  - `subtitle_pipeline/export/formats.py`: `SubtitleStyle` bo field
+    `position` (enum) va `outline_color`, them `position_x`/`position_y`
+    (% 0..100, mac dinh 50/90 ~ tuong duong "Duoi" cu) va `background_color`
+    (mac dinh `#000000`, giu nguyen hanh vi cu). `to_ass()` gio ghi de vi tri
+    tung dong bang override tag `{\an5\pos(x,y)}` (x,y quy doi tu % sang
+    pixel theo `PlayResX=1920`/`PlayResY=1080`) thay vi dua vao
+    Alignment/MarginV o Style header; mau vien chu co dinh den (khong con
+    tuy chinh duoc). Header Style mac dinh GIU NGUYEN dung y het truoc do
+    (test khoa `test_to_ass_default_style_matches_legacy_header` van pass
+    khong sua) vi Alignment/Margin trong header van la gia tri cu, chi khong
+    con anh huong render (bi `\pos()` de len).
+  - `frontend/src/pages/NewJob.tsx` Buoc 4: bo 3 nut vi tri, thay bang khung
+    xem truoc co the KEO THA truc tiep dong chu mau (pointer events, tinh %
+    theo vi tri con tro so voi khung). O mau "Mau vien" doi thanh "Mau nen"
+    (`background_color`, chi hien ro khi bat "Hop nen dac sau chu").
+  - `frontend/src/lib/types.ts`/`constants.ts`: `JobOptions.subtitle.style`
+    doi field tuong ung; xoa `POSITION_CHOICES` (khong con dung).
+  - `tests/test_export_formats.py`: doi
+    `test_to_ass_custom_style_changes_alignment_box_and_colors` thanh
+    `test_to_ass_custom_style_changes_box_and_colors` (kiem tra BackColour
+    tuy chinh thay vi Alignment) + test moi
+    `test_to_ass_custom_position_emits_pos_override_tag`.
+  87/87 pytest pass, ruff sach, `npm run build` pass. **Chua render thu video
+  hardsub that** de xac nhan `\pos()` hien dung vi tri da keo tren video xuat
+  ra (chi xac nhan qua unit test chuoi ASS sinh ra dung).
+- 2026-07-05 (cung ngay, lan 4): **Them bang phat am rieng cho giong doc long
+  tieng** (khac bang thuat ngu dich hien co) - xem chi tiet muc 6m. Tom tat:
+  file JSON mac dinh `subtitle_pipeline/infrastructure/pronunciation_glossary.json`
+  (seed `"vi": {"SQL": "ét quy eo"}`) + textarea moi o Buoc 3 wizard (uu tien
+  hon JSON neu trung tu) + module `subtitle_pipeline/application/
+  pronunciation.py` ap dung ngay truoc buoc TTS trong `dub.py` - CHI doi
+  audio, khong dung phu de xuat ra. Cung luc them 1 dong thong tin o dau
+  Buoc 3 hien ro dang dich/long tieng sang ngon ngu nao (doc tu Buoc 2) vi
+  nguoi dung nhan xet Buoc 3 khong co cho chon ngon ngu (thuc ra nam o Buoc
+  2, chi thieu hien thi lai). 94/94 pytest pass, ruff sach, `npm run build`
+  pass. **Chua nghe thu that voi edge-tts** de xac nhan phat am "ét quy eo"
+  nghe tu nhien hon "SQL" nguyen ban.

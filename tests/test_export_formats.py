@@ -65,12 +65,12 @@ def test_to_ass_default_style_matches_legacy_header():
     ) in output
 
 
-def test_to_ass_custom_style_changes_alignment_box_and_colors():
+def test_to_ass_custom_style_changes_box_and_colors():
     style = SubtitleStyle(
         font="Tahoma",
         font_size=60,
         text_color="#FFFF00",
-        position="top",
+        background_color="#00FF00",
         opaque_box=True,
         outline_width=3.0,
     )
@@ -82,6 +82,15 @@ def test_to_ass_custom_style_changes_alignment_box_and_colors():
     assert fields[1] == "Tahoma"
     assert fields[2] == "60"
     assert fields[3] == "&H0000FFFF"  # vang: ASS dao BGR nen FFFF00 -> 00FFFF
+    assert fields[6] == "&H8000FF00"  # nen xanh la, alpha mac dinh 0.5
     assert fields[15] == "3"  # BorderStyle 3 = hop nen dac
     assert fields[16] == "3"  # do day vien
-    assert fields[18] == "8"  # Alignment 8 = tren
+
+
+def test_to_ass_custom_position_emits_pos_override_tag():
+    style = SubtitleStyle(position_x=25.0, position_y=10.0)
+
+    output = to_ass(SEGMENTS, style)
+
+    # 25% cua 1920 = 480, 10% cua 1080 = 108
+    assert r"{\an5\pos(480,108)}" in output

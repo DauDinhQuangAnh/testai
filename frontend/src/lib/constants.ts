@@ -17,12 +17,6 @@ export const TRANSLATE_PRESETS: {
   { label: "Thoải mái (dòng dài, ít ngắt)", maxChars: 50, maxLines: 2 },
 ];
 
-export const POSITION_CHOICES: { label: string; value: "bottom" | "middle" | "top" }[] = [
-  { label: "Dưới", value: "bottom" },
-  { label: "Giữa", value: "middle" },
-  { label: "Trên", value: "top" },
-];
-
 export const RENDER_QUALITY_CHOICES: {
   label: string;
   value: "fast" | "balanced" | "high";
@@ -40,6 +34,35 @@ export const FONT_CHOICES = [
   "Roboto",
   "Times New Roman",
 ];
+
+// Ten hien thi tieng Viet cho ma ngon ngu ISO 639-1 - khop
+// NLLB_LANGUAGE_CODES (subtitle_pipeline/infrastructure/translator_nllb.py,
+// danh sach ngon ngu NGUON) + SUPPORTED_LANGUAGES (danh sach ngon ngu DICH).
+export const LANGUAGE_NAMES: Record<string, string> = {
+  vi: "Tiếng Việt",
+  en: "Tiếng Anh",
+  zh: "Tiếng Trung",
+  ja: "Tiếng Nhật",
+  ko: "Tiếng Hàn",
+  fr: "Tiếng Pháp",
+  es: "Tiếng Tây Ban Nha",
+  de: "Tiếng Đức",
+  ru: "Tiếng Nga",
+  it: "Tiếng Ý",
+  pt: "Tiếng Bồ Đào Nha",
+  th: "Tiếng Thái",
+  hi: "Tiếng Hindi",
+  id: "Tiếng Indonesia",
+  nl: "Tiếng Hà Lan",
+  tr: "Tiếng Thổ Nhĩ Kỳ",
+  pl: "Tiếng Ba Lan",
+  ar: "Tiếng Ả Rập",
+  uk: "Tiếng Ukraina",
+};
+
+export function languageName(code: string): string {
+  return LANGUAGE_NAMES[code] ?? code;
+}
 
 export const STATUS_LABELS: Record<string, string> = {
   queued: "Đang chờ",

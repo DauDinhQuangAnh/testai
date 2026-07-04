@@ -17,6 +17,7 @@ from app.jobs.celery_app import celery_app
 from app.jobs.repository import JobRepository
 from subtitle_pipeline.application.dub import DubRenderOptions, dub_and_export
 from subtitle_pipeline.application.pipeline import TranscriptionPipeline
+from subtitle_pipeline.application.pronunciation import resolve_pronunciation_glossary
 from subtitle_pipeline.application.translate import translate_and_export
 from subtitle_pipeline.config import PipelineConfig
 from subtitle_pipeline.domain.models import SubtitleSegment
@@ -30,6 +31,8 @@ def _build_dub_options(options: dict) -> DubRenderOptions:
     audio = options.get("audio") or {}
     subtitle = options.get("subtitle") or {}
     output = options.get("output") or {}
+    translation = options.get("translation") or {}
+    target_language = dubbing.get("target_language", "vi")
     return DubRenderOptions(
         voice=dubbing.get("voice"),
         rate_percent=int(dubbing.get("rate_percent", 0)),
@@ -41,6 +44,9 @@ def _build_dub_options(options: dict) -> DubRenderOptions:
         burn_subtitles=bool(subtitle.get("burn_in", False)),
         subtitle_style=SubtitleStyle(**(subtitle.get("style") or {})),
         render_quality=output.get("quality", "balanced"),
+        pronunciation=resolve_pronunciation_glossary(
+            target_language, translation.get("pronunciation", "")
+        ),
     )
 
 
@@ -243,5 +249,6 @@ def dub_job(
         options=DubRenderOptions(
             voice=voice,
             original_volume=0.3 if keep_original_audio else 0.0,
+            pronunciation=resolve_pronunciation_glossary(target_language),
         ),
     )

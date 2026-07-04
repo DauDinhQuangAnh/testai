@@ -61,19 +61,21 @@ class SubtitleStyle:
     """Style hien thi phu de ASS - mac dinh khop CHINH XAC header cu (truoc
     khi parameterize) de khong doi hanh vi cac cho goi to_ass() khong truyen
     style. Dung boi wizard Upload (buoc Phu de) + hardsub (audio_mux.py).
+
+    Vi tri phu de la toa do TU DO (position_x/position_y, % tinh tu goc
+    tren-trai khung hinh) thay vi 3 muc co dinh nhu truoc - FE cho keo tha
+    truc tiep tren khung xem truoc (xem NewJob.tsx buoc Phu de).
     """
 
     font: str = "Arial"
     font_size: int = 48
     text_color: str = "#FFFFFF"
-    outline_color: str = "#000000"
+    background_color: str = "#000000"
     outline_width: float = 2.0
-    position: str = "bottom"  # bottom | middle | top
+    position_x: float = 50.0  # % tu trai, 0..100
+    position_y: float = 90.0  # % tu tren, 0..100
     opaque_box: bool = False
     background_opacity: float = 0.5  # 0..1, chi dung cho mau nen sau chu
-
-
-_ASS_ALIGNMENTS = {"bottom": 2, "middle": 5, "top": 8}
 
 
 def _hex_to_ass_color(hex_color: str, alpha: float = 0.0) -> str:
@@ -87,10 +89,13 @@ def _hex_to_ass_color(hex_color: str, alpha: float = 0.0) -> str:
 def to_ass(segments: list[SubtitleSegment], style: SubtitleStyle | None = None) -> str:
     style = style or SubtitleStyle()
     primary = _hex_to_ass_color(style.text_color)
-    outline_color = _hex_to_ass_color(style.outline_color)
-    back_color = _hex_to_ass_color("#000000", alpha=style.background_opacity)
+    outline_color = _hex_to_ass_color("#000000")
+    back_color = _hex_to_ass_color(style.background_color, alpha=style.background_opacity)
     border_style = 3 if style.opaque_box else 1
-    alignment = _ASS_ALIGNMENTS.get(style.position, 2)
+    # \an5\pos(x,y) ghi de vi tri tu Style header (Alignment/Margin ben duoi
+    # giu nguyen gia tri cu de tuong thich nguoc, khong con anh huong render).
+    pos_x = round(style.position_x / 100 * 1920)
+    pos_y = round(style.position_y / 100 * 1080)
 
     header = (
         "[Script Info]\n"
@@ -105,7 +110,7 @@ def to_ass(segments: list[SubtitleSegment], style: SubtitleStyle | None = None) 
         f"Style: Default,{style.font},{style.font_size},{primary},&H000000FF,"
         f"{outline_color},{back_color},"
         f"0,0,0,0,100,100,0,0,{border_style},{style.outline_width:g},0,"
-        f"{alignment},10,10,20,1\n\n"
+        f"2,10,10,20,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Text"
     )
@@ -113,7 +118,10 @@ def to_ass(segments: list[SubtitleSegment], style: SubtitleStyle | None = None) 
     for seg in segments:
         start = _format_ass_timestamp(seg.start)
         end = _format_ass_timestamp(seg.end)
-        lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{_label(seg)}")
+        lines.append(
+            f"Dialogue: 0,{start},{end},Default,,0,0,0,,"
+            f"{{\\an5\\pos({pos_x},{pos_y})}}{_label(seg)}"
+        )
     return "\n".join(lines) + "\n"
 
 
