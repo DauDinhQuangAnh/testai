@@ -41,5 +41,14 @@ edge-tts>=6.1.9
 # subtitle_pipeline/infrastructure/downloader_ytdlp.py
 yt-dlp>=2024.12.13
 
+# Backend FastAPI cho UI React (backend/ + frontend/, quyet dinh 2026-07-03
+# chuyen khoi Streamlit - xem HANDOFF.md)
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
+pydantic[email]>=2.9.0
+pyjwt>=2.9.0
+bcrypt>=4.1.0
+
 # Phase 8 - Production storage (S3/MinIO)
 boto3>=1.34.0

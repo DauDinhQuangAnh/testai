@@ -637,6 +637,68 @@ burn), `test_tts_voices.py` (catalog/rate/pitch), `test_audio_timing.py`
 5. Nhap bang thuat ngu 1-2 muc -> kiem tra term duoc giu dung trong ban
    dich (rui ro token bi NLLB dich - xem Buoc 3 o tren).
 
+## 6k. UI React + FastAPI backend (2026-07-03/04 - THAY THE Streamlit lam UI chinh)
+
+**Trang thai:** Code xong. `pytest` 91/91 pass (15 test backend moi), `ruff`
+sach, `npm run build` pass (tsc + vite), smoke test THAT tren Postgres:
+health/register/admin-login/meta-voices/admin-users deu OK. **CHUA test E2E
+flow tao job qua UI React** - xem "Viec can lam".
+
+Nguoi dung ket luan Streamlit khong du cho UI chuyen nghiep. Quyet dinh nay
+DAO NGUOC 2 quyet dinh cu: (1) "Streamlit xuyen suot, khong FastAPI", (2)
+"xoa hoan toan Auth". Cac trang Streamlit trong `app/pages/` GIU LAI lam
+legacy (van chay duoc) cho toi khi UI React verify xong - se xoa sau.
+
+**Kien truc:**
+- **`backend/`** - FastAPI (`python -m uvicorn backend.main:app --port 8000`):
+  - `db.py` - session factory dung chung (lazy singleton, test override bang
+    `set_session_factory`).
+  - `security.py` - bcrypt + JWT (SESSION_SECRET_KEY). **Admin la tai khoan
+    CHUNG tu env `ADMIN_EMAIL`/`ADMIN_PASSWORD`** (mac dinh admin@local/
+    admin123 - DOI trong .env), khong nam trong bang users, token role=admin.
+    Token nhan qua header Bearer HOAC query `?token=` (cho `<video>`).
+  - `routers/auth.py` - register/login/me. `routers/jobs.py` - CRUD job
+    (multipart file + options JSON string hoac source.url), rerun, files
+    (nhom video/phu de + preview), download/stream. `routers/meta.py` -
+    languages/voices/voice-sample. `routers/admin.py` - users (kem job
+    count), xoa user (kem job cua ho), toan bo jobs.
+  - Ownership: user chi thay job minh; admin thay het; job cu `user_id=NULL`
+    chi admin thay. Sai chu tra 404 (khong lo thong tin).
+  - Startup migration: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS user_id`
+    (khong can reset DB).
+- **DB**: them lai `User` + `Job.user_id` (nullable) vao `app/db/models.py`;
+  `app/users/repository.py` moi; `JobRepository.list_by_user` +
+  `create(user_id=)`.
+- **`app/jobs/stages.py`** moi - PIPELINE_STAGES/stage_progress tach khoi
+  `app/ui.py` (von import streamlit) de backend dung duoc; `app/ui.py`
+  re-export.
+- **`frontend/`** - Vite + React 18 + TypeScript + Tailwind +
+  react-router-dom + TanStack Query (Node 22 co san tren may):
+  - `/` Landing (hero + 6 tinh nang + 3 buoc + CTA, theme cam/kem kieu
+    VietDub), `/login`, `/register`.
+  - `/studio` - danh sach job (metric, filter, progress bar nhieu doan,
+    poll 3s, xoa/tao lai). `/studio/new` - **wizard 6 buoc stepper sidebar
+    THAT** (Nguon/Giong doc/Dich/Phu de/Am thanh & Xuat/Xem lai) - options
+    dict giu NGUYEN schema cu nen Celery worker khong doi.
+    `/studio/jobs/:id` - chi tiet: video player inline (token query), tai
+    phu de theo nhom, xem truoc noi dung.
+  - `/admin` - bang users (xoa kem job) + toan bo jobs.
+  - Dev: Vite proxy `/api` -> localhost:8000 (khong vuong CORS).
+- Dependency moi: fastapi, uvicorn[standard], python-multipart,
+  pydantic[email], pyjwt, bcrypt (requirements.txt); frontend/package.json
+  rieng.
+
+**Cach chay day du (4 tien trinh):**
+1. `docker compose up -d` (Postgres 15432 + Redis 6379)
+2. `python -m celery -A app.jobs.celery_app worker --loglevel=info`
+3. `python -m uvicorn backend.main:app --port 8000`
+4. `cd frontend && npm run dev` -> mo http://localhost:5173
+
+**Viec can lam (E2E qua UI React):** dang ky tai khoan -> wizard tao job tu
+URL YouTube che do 60s -> xem progress tren Studio -> mo chi tiet xem video
++ tai phu de -> dang nhap admin@local/admin123 -> kiem tra thay user + toan
+bo job, thu xoa user. Bao loi de sua tiep.
+
 ## 7. Quyet dinh moi / thay doi so voi ban dau
 
 - **2026-07-01 - Bo qua thu tu roadmap goc:** Nguoi dung chon viet Phase 2 truoc
@@ -1168,3 +1230,14 @@ burn), `test_tts_voices.py` (catalog/rate/pitch), `test_audio_timing.py`
   test pass, ruff sach; CHUA chay thu end-to-end qua UI** (xem checklist
   muc 6j). GIOI HAN trung thuc: "dich theo ngu canh" that su can LLM -
   chua lam, da ghi ro o UI + muc 6j.
+- 2026-07-04: **Chuyen UI tu Streamlit sang React + FastAPI** (nguoi dung:
+  "Streamlit khong phu hop lam UI chuyen nghiep") - DAO NGUOC 2 quyet dinh
+  cu (Streamlit-only, khong-Auth). Xem chi tiet muc 6k moi. Tom tat:
+  `backend/` FastAPI (JWT + bcrypt, admin = tai khoan chung tu env, khong
+  gioi han usage theo yeu cau), `frontend/` Vite+React+TS+Tailwind (landing
+  page, login/register, Studio + wizard 6 buoc stepper that, job detail voi
+  video player, trang admin). Them lai `User`/`Job.user_id` (nullable,
+  migration ALTER tu dong luc startup - KHONG can reset DB). Lỗi pipeline/
+  Celery/options schema giu NGUYEN 100%. Streamlit pages giu lam legacy.
+  91/91 pytest + ruff sach + `npm run build` pass + smoke test that tren
+  Postgres OK. CHUA test E2E qua UI React (checklist muc 6k).

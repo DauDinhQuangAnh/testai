@@ -1,0 +1,132 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+
+import NavBar from "../components/NavBar";
+import { api } from "../lib/api";
+import { STATUS_LABELS } from "../lib/constants";
+import type { AdminUserOut, JobOut } from "../lib/types";
+
+export default function Admin() {
+  const queryClient = useQueryClient();
+
+  const { data: users = [] } = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: () => api.get<AdminUserOut[]>("/api/admin/users"),
+  });
+  const { data: jobs = [] } = useQuery({
+    queryKey: ["admin-jobs"],
+    queryFn: () => api.get<JobOut[]>("/api/admin/jobs"),
+    refetchInterval: 5000,
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: (id: string) => api.del(`/api/admin/users/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-jobs"] });
+    },
+  });
+
+  const emailByUserId = new Map(users.map((u) => [u.id, u.email]));
+
+  return (
+    <div className="min-h-screen">
+      <NavBar />
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <h1 className="mb-6 text-2xl font-bold">Quản trị hệ thống</h1>
+
+        <section className="card mb-8">
+          <h2 className="mb-4 text-lg font-semibold">Người dùng ({users.length})</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-line text-ink-soft">
+                  <th className="py-2 pr-4">Email</th>
+                  <th className="py-2 pr-4">Ngày tạo</th>
+                  <th className="py-2 pr-4">Số job</th>
+                  <th className="py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id} className="border-b border-line/60">
+                    <td className="py-2 pr-4 font-medium">{u.email}</td>
+                    <td className="py-2 pr-4 text-ink-soft">
+                      {new Date(u.created_at).toLocaleDateString("vi-VN")}
+                    </td>
+                    <td className="py-2 pr-4">{u.job_count}</td>
+                    <td className="py-2 text-right">
+                      <button
+                        className="btn-ghost px-3 py-1 text-xs text-red-600 hover:border-red-400"
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Xóa người dùng ${u.email} cùng toàn bộ ${u.job_count} job của họ?`,
+                            )
+                          )
+                            deleteUser.mutate(u.id);
+                        }}
+                      >
+                        Xóa
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-4 text-center text-ink-soft">
+                      Chưa có người dùng đăng ký.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="card">
+          <h2 className="mb-4 text-lg font-semibold">Toàn bộ job ({jobs.length})</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-line text-ink-soft">
+                  <th className="py-2 pr-4">File</th>
+                  <th className="py-2 pr-4">Chủ sở hữu</th>
+                  <th className="py-2 pr-4">Trạng thái</th>
+                  <th className="py-2 pr-4">Bước</th>
+                  <th className="py-2">Tạo lúc</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((j) => (
+                  <tr key={j.id} className="border-b border-line/60">
+                    <td className="max-w-xs truncate py-2 pr-4 font-medium" title={j.filename}>
+                      <Link to={`/studio/jobs/${j.id}`} className="hover:text-primary">
+                        {j.filename}
+                      </Link>
+                    </td>
+                    <td className="py-2 pr-4 text-ink-soft">
+                      {j.user_id ? (emailByUserId.get(j.user_id) ?? j.user_id.slice(0, 8)) : "—"}
+                    </td>
+                    <td className="py-2 pr-4">{STATUS_LABELS[j.status] ?? j.status}</td>
+                    <td className="py-2 pr-4 text-ink-soft">{j.stage_label}</td>
+                    <td className="py-2 text-ink-soft">
+                      {new Date(j.created_at).toLocaleString("vi-VN")}
+                    </td>
+                  </tr>
+                ))}
+                {jobs.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-4 text-center text-ink-soft">
+                      Chưa có job nào.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}

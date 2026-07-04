@@ -19,6 +19,9 @@ known-first-party = ["subtitle_pipeline", "app", "phase1_feasibility"]
 # dau file nhu E402 yeu cau. Day la ngoai le co chu dich, khong phai loi.
 "app/Home.py" = ["E402"]
 "app/pages/*.py" = ["E402"]
+# FastAPI dung `param = Depends(...)` lam default argument theo thiet ke
+# chinh thuc cua framework - B008 canh bao sai trong ngu canh nay.
+"backend/**" = ["B008"]
 "phase1_feasibility/step01_extract_audio.py" = ["E402"]
 "phase1_feasibility/step02_denoise.py" = ["E402"]
 "phase1_feasibility/step04_transcribe.py" = ["E402"]
