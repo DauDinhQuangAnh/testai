@@ -51,3 +51,26 @@ def send_job_result_email(to_email: str, job_id: str, filename: str) -> None:
     with smtplib.SMTP_SSL(host, port) as smtp:
         smtp.login(user, password)
         smtp.send_message(message)
+
+
+def send_direct_download_email(to_email: str, filename: str, download_url: str) -> None:
+    """Send a direct signed download link for external flows like Telegram.
+
+    Unlike send_job_result_email(), this does not require the receiver to own a
+    web account because the URL itself is already scoped and signed.
+    """
+    host, port, user, password, from_name = _smtp_settings()
+
+    message = EmailMessage()
+    message["Subject"] = f'Video "{filename}" da xu ly xong'
+    message["From"] = f"{from_name} <{user}>"
+    message["To"] = to_email
+    message.set_content(
+        "Video cua ban da xu ly xong.\n\n"
+        f"Tai video tai: {download_url}\n\n"
+        "Link nay chi dung cho file ket qua nay va se het han theo cau hinh he thong."
+    )
+
+    with smtplib.SMTP_SSL(host, port) as smtp:
+        smtp.login(user, password)
+        smtp.send_message(message)

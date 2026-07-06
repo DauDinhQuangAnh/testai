@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 import backend.db as backend_db
 from app.db.models import Base, JobStatus
 from backend.main import app
+from backend.share_links import create_file_share_token
 from subtitle_pipeline.infrastructure.downloader_ytdlp import QualityOption, VideoMetadata
 
 
@@ -286,6 +287,24 @@ def test_download_accepts_token_query_param(client, tmp_path):
     # Token qua query param (cho <video>/<a download> khong gui duoc header).
     res = client.get(f"/api/jobs/{job['id']}/files?token={token}")
     assert res.status_code == 200
+
+
+def test_public_download_requires_signed_file_token(client, monkeypatch):
+    monkeypatch.setenv("PUBLIC_LINK_SECRET", "test-public-secret")
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+    output_dir = client.storage_dir / job["id"] / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filename = "video.vi.dubbed.mp4"
+    (output_dir / filename).write_bytes(b"video")
+
+    share_token = create_file_share_token(job["id"], filename)
+    ok = client.get(f"/api/public/jobs/{job['id']}/files/{filename}?token={share_token}")
+    denied = client.get(f"/api/public/jobs/{job['id']}/files/{filename}?token=bad")
+
+    assert ok.status_code == 200
+    assert ok.content == b"video"
+    assert denied.status_code == 403
 
 
 def test_job_files_only_classifies_real_dubbed_videos_as_videos(client):

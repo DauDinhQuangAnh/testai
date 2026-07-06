@@ -65,6 +65,7 @@ function Stop-DevProcesses {
     $patterns = @(
         "celery -A app.jobs.celery_app",
         "uvicorn backend.main:app",
+        "app.telegram_bot.bot",
         "streamlit run app/Home.py",
         "frontend\\node_modules",
         "frontend/node_modules",
@@ -251,6 +252,17 @@ $frontend = Start-LoggedProcess `
     -ArgumentList @("run", "dev", "--", "--host", "localhost", "--port", "5173") `
     -WorkingDirectory $frontendDir
 
+$telegram = $null
+if ($env:TELEGRAM_BOT_TOKEN) {
+    $telegram = Start-LoggedProcess `
+        -Name "telegram" `
+        -FilePath $python `
+        -ArgumentList @("-m", "app.telegram_bot.bot") `
+        -WorkingDirectory $Root
+} else {
+    Write-Step "Telegram bot skipped (TELEGRAM_BOT_TOKEN is not set)"
+}
+
 Wait-HttpReady "http://localhost:8000/api/health" "FastAPI backend"
 Wait-HttpReady "http://localhost:5173" "Vite frontend"
 
@@ -261,4 +273,7 @@ Write-Host "Backend API: http://localhost:8000/api/health"
 Write-Host "Celery PID: $($celery.Id)"
 Write-Host "Backend PID: $($backend.Id)"
 Write-Host "Frontend PID: $($frontend.Id)"
-Write-Host "Logs: backend.*.log, celery.*.log, frontend.*.log"
+if ($telegram) {
+    Write-Host "Telegram PID: $($telegram.Id)"
+}
+Write-Host "Logs: backend.*.log, celery.*.log, frontend.*.log, telegram.*.log"

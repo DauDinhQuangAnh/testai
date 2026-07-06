@@ -120,18 +120,46 @@ def _cookie_options() -> dict[str, str]:
     return {}
 
 
-def friendly_yt_dlp_error(message: str) -> str:
+def _is_youtube_cookie_error(message: str) -> bool:
     lower = message.lower()
-    if (
+    return (
         "sign in to confirm" in lower
         or "not a bot" in lower
         or "fresh cookies" in lower
         or "cookies are needed" in lower
-    ):
+    )
+
+
+def _configured_cookies_path() -> Path:
+    from subtitle_pipeline.infrastructure.cookie_refresh import DEFAULT_COOKIES_PATH
+
+    return Path(os.environ.get("YTDLP_COOKIES_FILE", str(DEFAULT_COOKIES_PATH)))
+
+
+def _try_refresh_cookies() -> bool:
+    """Refresh cookies from the saved Playwright profile.
+
+    Returns False when setup was never done or refresh failed. Callers still
+    surface a friendly error; this helper keeps normal users away from Admin for
+    the common case where only cookies expired.
+    """
+    try:
+        from subtitle_pipeline.infrastructure.cookie_refresh import refresh_cookies
+
+        refresh_cookies(_configured_cookies_path())
+        return True
+    except Exception:
+        return False
+
+
+def friendly_yt_dlp_error(message: str) -> str:
+    lower = message.lower()
+    if _is_youtube_cookie_error(message):
         return (
             "YouTube yeu cau xac thuc (nghi ngo bot) nen khong doc/tai duoc video nay. "
-            'Vao trang Admin, bam "Lam moi cookie" (can chay setup dang nhap 1 lan truoc, '
-            "xem huong dan trong .env.example) roi thu lai."
+            "He thong da thu tu lam moi cookie nhung chua thanh cong. Vao Admin bam "
+            '"Lam moi cookie", hoac admin can chay setup dang nhap YouTube 1 lan '
+            "theo huong dan trong .env.example."
         )
     if "unsupported url" in lower:
         return "Link nay chua duoc yt-dlp ho tro."
@@ -164,11 +192,16 @@ def analyze_video(url: str) -> VideoMetadata:
         "noplaylist": True,
         **_cookie_options(),
     }
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(normalized, download=False)
-    except Exception as exc:
-        raise RuntimeError(friendly_yt_dlp_error(str(exc))) from exc
+    for attempt in range(2):
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(normalized, download=False)
+            break
+        except Exception as exc:
+            if attempt == 0 and _is_youtube_cookie_error(str(exc)) and _try_refresh_cookies():
+                opts = {**opts, **_cookie_options()}
+                continue
+            raise RuntimeError(friendly_yt_dlp_error(str(exc))) from exc
 
     if info is None:
         raise RuntimeError("Khong doc duoc metadata video.")
@@ -212,7 +245,10 @@ def download_video(url: str, quality: str, output_path: Path) -> Path:
     temp_template = str(output_path.parent / "_download_%(id)s.%(ext)s")
     errors: list[str] = []
 
-    for index, format_selector in enumerate(QUALITY_FALLBACKS[quality]):
+    refreshed_cookies = False
+    index = 0
+    while index < len(QUALITY_FALLBACKS[quality]):
+        format_selector = QUALITY_FALLBACKS[quality][index]
         _cleanup_download_temps(output_path.parent)
         opts: dict[str, Any] = {
             "format": format_selector,
@@ -239,10 +275,22 @@ def download_video(url: str, quality: str, output_path: Path) -> Path:
                 output_path.unlink()
             return completed.rename(output_path)
         except Exception as exc:
-            errors.append(str(exc))
+            message = str(exc)
+            if (
+                not refreshed_cookies
+                and _is_youtube_cookie_error(message)
+                and _try_refresh_cookies()
+            ):
+                refreshed_cookies = True
+                errors.clear()
+                index = 0
+                continue
+
+            errors.append(message)
             if index == len(QUALITY_FALLBACKS[quality]) - 1:
                 _cleanup_download_temps(output_path.parent)
                 raise RuntimeError(friendly_yt_dlp_error("; ".join(errors))) from exc
+            index += 1
 
     raise RuntimeError("Khong tai duoc video.")
 

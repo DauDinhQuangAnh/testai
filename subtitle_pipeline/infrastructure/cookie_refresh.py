@@ -120,11 +120,23 @@ def refresh_cookies(
     """Dung lai profile da dang nhap (`setup_login_session`) de lay cookie
     MOI, chay AN (headless) - khong can dang nhap lai. An toan de goi tu
     dong dinh ky hoac tu 1 endpoint backend. Tra ve so cookie lay duoc.
+
+    Rai `RuntimeError` ngay neu `profile_dir` chua ton tai - nghia la
+    `setup_login_session()` chua tung chay, nen KHONG co session dang nhap
+    nao de tai su dung (chay tiep se chi lay duoc cookie AN DANH ma khong
+    bao loi gi, de gay hieu lam la da thanh cong).
     """
     from playwright.sync_api import sync_playwright
 
+    if not profile_dir.exists():
+        raise RuntimeError(
+            f"Chua tung chay setup dang nhap (khong thay {profile_dir}). "
+            "Chay 'python -m subtitle_pipeline.infrastructure.cookie_refresh --setup' "
+            "1 lan truoc de dang nhap YouTube, roi moi chay lai --refresh."
+        )
+
     sites = sites or DEFAULT_SITES
-    profile_dir.mkdir(parents=True, exist_ok=True)
+    print("Dang mo trinh duyet an de lay cookie moi...", file=sys.stderr)
 
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(

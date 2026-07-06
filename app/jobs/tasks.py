@@ -16,6 +16,7 @@ from pathlib import Path
 from app.db.models import Job, JobStatus
 from app.jobs.celery_app import celery_app
 from app.jobs.repository import JobRepository
+from app.telegram_bot.notifier import notify_telegram_job_done, notify_telegram_job_failed
 from subtitle_pipeline.application.dub import DubRenderOptions, dub_and_export
 from subtitle_pipeline.application.pipeline import TranscriptionPipeline
 from subtitle_pipeline.application.pronunciation import resolve_pronunciation_glossary
@@ -171,8 +172,12 @@ def process_video_job(job_id: str, options: dict | None = None) -> None:
                 )
 
         repo.update_status(job_id, status=JobStatus.DONE, stage="done")
+        with suppress(Exception):
+            notify_telegram_job_done(job, options)
     except Exception as exc:
         repo.update_status(job_id, status=JobStatus.FAILED, stage=None, error_message=str(exc))
+        with suppress(Exception):
+            notify_telegram_job_failed(job, options, str(exc))
         raise
     finally:
         source = options.get("source") or {}

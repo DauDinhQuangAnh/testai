@@ -1064,6 +1064,98 @@ la "ét quy eo". Da hoi lai nguoi dung 2 diem truoc khi code:
   "AI" ma cau co "AI" la viet tat khac ngu canh) - chap nhan duoc o pham vi
   hien tai (danh sach nho, nguoi dung tu kiem soat noi dung file JSON).
 
+## 6n. Telegram bot - tai video qua chat, nhan link/email rieng (2026-07-07)
+
+**Trang thai:** Code viet boi nguoi dung/Codex (khong phai Claude Code), Claude
+Code duoc yeu cau **rà soát lại** ("kiểm tra coi code có đang ổn không") -
+xem ket qua ra soat + cac cho da sua o duoi. 116/116 pytest pass, ruff sach.
+**Chua chay bot that voi Telegram token that** trong phien ra soat nay.
+
+**Muc dich:** Luong RIENG voi web UI - nguoi dung nhan link YouTube/Douyin
+qua Telegram, bot tu tai + long tieng, roi tra ket qua qua Telegram (link
+tai co chu ky, khong can dang nhap web) hoac qua email (link tai truc tiep,
+khac voi email web dung cho nguoi dung DA CO tai khoan).
+
+**Kien truc:**
+- `app/jobs/service.py` (module moi) - `create_download_job()`: tao 1 job
+  tai-tu-URL y het schema wizard web (`default_download_job_options()`),
+  ghi `job_config.json`, enqueue `process_video_job` Celery task - dung
+  chung PIPELINE voi web, chi khac o CHO TAO job (khong qua backend API/
+  React) va them field tuy chon `options["telegram"]` (`chat_id`,
+  `notify_email`) de Celery task biet co can bao Telegram khi xong khong.
+- `app/telegram_bot/` (module moi, package rieng):
+  - `client.py` - `TelegramClient`, goi thang Telegram Bot API qua
+    `urllib.request` (KHONG them dependency python-telegram-bot nao ca).
+  - `bot.py` - `TelegramJobBot.run_forever()`: vong lap polling
+    `getUpdates`, may trang thai don gian per-chat (`self.pending`) cho
+    luong "gui link -> hoi tai chat luong nao -> hoi gui email hay lay
+    link -> tao job". Loc chat duoc phep qua `TELEGRAM_ALLOWED_CHAT_IDS`
+    (de trong = AI CUNG dung duoc bot - luu y neu may chay AI pipeline
+    nang, nen dien gioi han de tranh nguoi la lam ton GPU).
+  - `notifier.py` - `notify_telegram_job_done()`/`notify_telegram_job_failed()`,
+    goi tu `app/jobs/tasks.py` (hook nho o cuoi `process_video_job`, boc
+    trong `with suppress(Exception)` nen KHONG anh huong job web binh
+    thuong neu Telegram loi/chua cau hinh - chi kich hoat khi
+    `options["telegram"]` co mat).
+- `backend/share_links.py` (module moi) - `create_file_share_token()`/
+  `verify_file_share_token()`: token HMAC-SHA256 tu ky (base64url
+  payload + base64url chu ky, KHONG dung JWT vi khong can decode noi
+  dung, chi can verify), mang theo `job_id`/`filename`/`exp` - cho phep
+  TAI 1 FILE CU THE ma khong can dang nhap web (khac han token JWT dang
+  dung cho `AuthUser`). Het han theo `PUBLIC_LINK_TTL_SECONDS` (mac dinh
+  7 ngay).
+- `backend/routers/public.py` (router moi, KHONG qua `get_current_user`) -
+  `GET /api/public/jobs/{job_id}/files/{name}?token=...`: verify token roi
+  serve file, chong path traversal giong het `jobs.py::download_file`
+  (chi khop file la con truc tiep cua `output_dir`).
+- `backend/email_sender.py` them ham `send_direct_download_email()` (khac
+  `send_job_result_email()` da co - ham cu gui link toi trang job yeu cau
+  dang nhap, ham moi gui thang link tai da ky, dung cho nguoi dung Telegram
+  khong nhat thiet co tai khoan web).
+- `.env.example` them nhom `TELEGRAM_*` (token, allowlist chat id, chat
+  luong/ngon ngu/trim mac dinh) + `BACKEND_PUBLIC_URL`/
+  `PUBLIC_LINK_TTL_SECONDS`/`PUBLIC_LINK_SECRET` (fallback ve
+  `SESSION_SECRET_KEY` neu de trong).
+- `start_project.ps1`/`stop_project.ps1`: tu chay/dung process bot NEU
+  `TELEGRAM_BOT_TOKEN` co dien trong `.env`, bo qua neu khong (khong bat
+  buoc phai dung tinh nang nay).
+
+**Cac loi/diem chua toi uu phat hien khi Claude Code ra soat + DA SUA:**
+- **Ro ri ket noi DB (quan trong nhat):** `create_download_job()` ban dau
+  goi `JobRepository()` khong tham so -> mac dinh goi `make_session_factory()`
+  MOI LAN GOI, tao engine + connection pool MOI + chay lai `create_all()`
+  (chinh `backend/db.py` da canh bao dieu nay "rat nang neu lap lai"). Vi
+  bot Telegram song lau trong 1 vong lap polling va goi ham nay moi khi co
+  nguoi xac nhan tai video, moi job se ro ri 1 pool ket noi Postgres khong
+  bao gio dong - co the can Postgres `max_connections` neu dung nhieu. Da
+  sua: them tham so `job_repo_factory=job_repo` (dung lai `backend.db.job_repo`
+  - CUNG 1 session factory singleton ma FastAPI backend dang dung).
+- Dead-code + kho doc: `bot.py::run_forever()` dung ternary-lam-statement
+  de gui tin nhan khoi dong, kem 1 nhanh fallback `or self.allowed_chat_hint()`
+  KHONG BAO GIO chay toi (vi dieu kien ngoai da dam bao truoc do). Da doi
+  thanh `if` binh thuong, xoa `allowed_chat_hint()` (khong con noi nao goi).
+- 3 loi ruff E501 (dong qua 100 ky tu) trong `bot.py`/`notifier.py` - da sua.
+- `tests/test_telegram_job_service.py` cap nhat theo tham so
+  `job_repo_factory` moi (truoc do monkeypatch thang class `JobRepository`).
+
+**Da xac nhan KHONG dong den:** flow tao job qua web (`backend/routers/jobs.py`)
+hoan toan khong doi - `options["telegram"]` la field tuy chon, job web binh
+thuong khong co field nay nen `notify_telegram_job_done()` return ngay o
+dong dau (`if not chat_id: return`).
+
+**Van de con lai (chua sua, ghi nhan de theo doi):**
+- `TELEGRAM_ALLOWED_CHAT_IDS` de trong theo mac dinh = AI CO Telegram username
+  cua bot deu dung duoc, kich hoat job GPU nang - day la lua chon co y trong
+  `.env.example` (ghi ro trong comment), nhung nen nhac nguoi dung dien gioi
+  han neu may dev chi co 1 GPU dung chung nhieu viec.
+- Secret ky token (`PUBLIC_LINK_SECRET`) fallback ve `SESSION_SECRET_KEY` roi
+  fallback tiep ve chuoi hardcode `dev-secret-doi-khi-deploy` neu ca hai deu
+  trong - giong het pattern JWT hien co (khong phai loi moi), nhung dang
+  y hon voi link nay vi KHONG CAN dang nhap de dung - nen dien
+  `SESSION_SECRET_KEY` that truoc khi de bot public.
+- Chua co test end-to-end that voi Telegram Bot API that (chi test
+  `create_download_job()` bang fake repo/task).
+
 ## 8. Van de dang mo / can quyet dinh
 
 - **Chua co trang "Sua phu de" (Editor) trong UI React** - Streamlit cu co
@@ -1792,3 +1884,24 @@ la "ét quy eo". Da hoi lai nguoi dung 2 diem truoc khi code:
   `pip install -r requirements.txt`, `python -m playwright install
   chromium`, roi `python -m subtitle_pipeline.infrastructure.cookie_refresh
   --setup` va thu tai lai video tung bi chan de xac nhan het loi.
+- 2026-07-07: **Sua trai nghiem gay hieu lam trong `cookie_refresh.py`**:
+  nguoi dung chay `--refresh` TRUOC `--setup` (chua tung dang nhap) - lenh
+  chay AN (headless, dung thiet ke) nen KHONG co cua so nao hien ra, tuong
+  nhu bi treo nen nguoi dung tu nhan Ctrl+C (`KeyboardInterrupt`, khong phai
+  loi code that). `refresh_cookies()` gio kiem tra `profile_dir` (tao boi
+  `--setup`) co ton tai truoc khi chay - neu chua co, rai `RuntimeError` ro
+  rang ngay lap tuc (huong dan chay `--setup` truoc) thay vi im lang chay
+  tiep va lay cookie AN DANH (truoc day se "thanh cong" gia, khong bao loi
+  gi ca du chua he dang nhap). Them 1 dong in "Dang mo trinh duyet an de
+  lay cookie moi..." truoc khi bat dau de nguoi dung biet lenh dang chay,
+  khong phai dung im. 114/114 pytest pass, ruff sach.
+- 2026-07-07: **Ra soat tinh nang Telegram bot** (viet boi nguoi dung/Codex,
+  khong phai Claude Code) theo yeu cau "kiểm tra coi code có đang ổn không".
+  Xem chi tiet muc 6n. Tom tat: kien truc tach luong dung nhu mo ta (job
+  Telegram di qua `app/jobs/service.py`, khong dung backend API), sua 1 loi
+  ro ri ket noi DB thuc su (`create_download_job()` tao engine/pool moi moi
+  lan goi thay vi dung chung session factory singleton), dep 1 doan
+  dead-code kho doc trong `bot.py`, sua 3 loi ruff E501. Nguoi dung xac
+  nhan viec doi `ADMIN_EMAIL`/`ADMIN_PASSWORD` mau trong `.env.example`
+  thanh `admin`/`admin` la CO Y (khong phai sot lai), giu nguyen. 116/116
+  pytest pass, ruff sach sau khi sua.

@@ -41,6 +41,7 @@ function Stop-DevProcesses {
     $patterns = @(
         "celery -A app.jobs.celery_app",
         "uvicorn backend.main:app",
+        "app.telegram_bot.bot",
         "streamlit run app/Home.py",
         "frontend\\node_modules",
         "frontend/node_modules",
