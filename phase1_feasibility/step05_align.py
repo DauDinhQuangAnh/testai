@@ -5,6 +5,7 @@ Goi adapter `WhisperXAligner` dung trong subtitle_pipeline (Phase 2).
 Chay: python phase1_feasibility/step05_align.py results/audio_denoised.wav \
     --transcript results/transcript_medium.json --language vi
 """
+
 import argparse
 import json
 import sys
@@ -17,10 +18,10 @@ for _parent in Path(__file__).resolve().parents:
             sys.path.insert(0, str(_parent))
         break
 
+from measure import measure
+
 from subtitle_pipeline.domain.models import TranscriptSegment
 from subtitle_pipeline.infrastructure.aligner_whisperx import WhisperXAligner
-
-from measure import measure
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -36,9 +37,11 @@ if __name__ == "__main__":
         transcript = [TranscriptSegment(**seg) for seg in json.load(f)]
 
     aligned = []
-    with measure("step05_align_whisperx", {"language": args.language}):
-        with WhisperXAligner(args.language, args.device) as aligner:
-            aligned = aligner.align(Path(args.input), transcript)
+    with (
+        measure("step05_align_whisperx", {"language": args.language}),
+        WhisperXAligner(args.language, args.device) as aligner,
+    ):
+        aligned = aligner.align(Path(args.input), transcript)
 
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump([asdict(seg) for seg in aligned], f, ensure_ascii=False, indent=2)

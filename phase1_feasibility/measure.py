@@ -3,6 +3,7 @@
 Moi ket qua duoc ghi (append) vao results/phase1_results.jsonl. Dung
 summarize_results.py de tong hop lai thanh bang trong HANDOFF.md.
 """
+
 import json
 import time
 from contextlib import contextmanager
@@ -18,6 +19,7 @@ def measure(step_name: str, extra: dict | None = None):
 
     try:
         import torch
+
         cuda_available = torch.cuda.is_available()
     except ImportError:
         torch = None
@@ -37,7 +39,7 @@ def measure(step_name: str, extra: dict | None = None):
     finally:
         if cuda_available:
             torch.cuda.synchronize()
-            vram_peak_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
+            vram_peak_mb = torch.cuda.max_memory_allocated() / (1024**2)
         else:
             vram_peak_mb = None
         elapsed = time.perf_counter() - start

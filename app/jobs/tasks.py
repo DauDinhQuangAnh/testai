@@ -10,6 +10,7 @@ translate_job/dub_job (Editor) van giu tham so roi don gian.
 """
 
 import json
+from contextlib import suppress
 from pathlib import Path
 
 from app.db.models import Job, JobStatus
@@ -73,10 +74,8 @@ def _cleanup_downloaded_input(job: Job) -> None:
     input_path = Path(job.input_path)
     for path in [input_path, *job_dir.glob("_trimmed_*")]:
         if path.is_file():
-            try:
+            with suppress(OSError):
                 path.unlink()
-            except OSError:
-                pass
 
 
 @celery_app.task(name="app.jobs.tasks.process_video_job")

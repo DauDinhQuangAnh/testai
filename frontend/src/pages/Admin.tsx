@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import NavBar from "../components/NavBar";
+import Spinner from "../components/Spinner";
 import { api } from "../lib/api";
 import { STATUS_LABELS } from "../lib/constants";
 import type { AdminUserOut, JobOut } from "../lib/types";
@@ -9,11 +10,11 @@ import type { AdminUserOut, JobOut } from "../lib/types";
 export default function Admin() {
   const queryClient = useQueryClient();
 
-  const { data: users = [] } = useQuery({
+  const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => api.get<AdminUserOut[]>("/api/admin/users"),
   });
-  const { data: jobs = [] } = useQuery({
+  const { data: jobs = [], isLoading: jobsLoading } = useQuery({
     queryKey: ["admin-jobs"],
     queryFn: () => api.get<JobOut[]>("/api/admin/jobs"),
     refetchInterval: 5000,
@@ -58,6 +59,7 @@ export default function Admin() {
                     <td className="py-2 text-right">
                       <button
                         className="btn-ghost px-3 py-1 text-xs text-red-600 hover:border-red-400"
+                        disabled={deleteUser.isPending && deleteUser.variables === u.id}
                         onClick={() => {
                           if (
                             confirm(
@@ -67,12 +69,24 @@ export default function Admin() {
                             deleteUser.mutate(u.id);
                         }}
                       >
+                        {deleteUser.isPending && deleteUser.variables === u.id && (
+                          <Spinner className="h-3 w-3" />
+                        )}
                         Xóa
                       </button>
                     </td>
                   </tr>
                 ))}
-                {users.length === 0 && (
+                {usersLoading && (
+                  <tr>
+                    <td colSpan={4} className="py-4 text-center text-ink-soft">
+                      <span className="inline-flex items-center gap-2">
+                        <Spinner /> Đang tải...
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                {!usersLoading && users.length === 0 && (
                   <tr>
                     <td colSpan={4} className="py-4 text-center text-ink-soft">
                       Chưa có người dùng đăng ký.
@@ -115,7 +129,16 @@ export default function Admin() {
                     </td>
                   </tr>
                 ))}
-                {jobs.length === 0 && (
+                {jobsLoading && (
+                  <tr>
+                    <td colSpan={5} className="py-4 text-center text-ink-soft">
+                      <span className="inline-flex items-center gap-2">
+                        <Spinner /> Đang tải...
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                {!jobsLoading && jobs.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-4 text-center text-ink-soft">
                       Chưa có job nào.

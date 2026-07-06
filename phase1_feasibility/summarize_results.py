@@ -4,6 +4,7 @@ dong bo chung, KHONG sua tay bang ket qua trong HANDOFF.md.
 
 Chay: python phase1_feasibility/summarize_results.py
 """
+
 import json
 from pathlib import Path
 
@@ -16,8 +17,10 @@ END_MARK = "<!-- PHASE1_RESULTS_END -->"
 
 def build_table() -> str:
     if not RESULTS_FILE.exists():
-        return ("(chua co ket qua nao, chay `phase1_feasibility/run_all.py` "
-                "truoc roi chay lai script nay)")
+        return (
+            "(chua co ket qua nao, chay `phase1_feasibility/run_all.py` "
+            "truoc roi chay lai script nay)"
+        )
 
     rows = ["| Step | Status | Time (s) | VRAM peak (MB) | Notes |", "|---|---|---|---|---|"]
     with open(RESULTS_FILE, encoding="utf-8") as f:

@@ -6,6 +6,7 @@ vi goi thang thu vien df - do duoc VRAM/thoi gian tren chinh code production.
 Chay: python phase1_feasibility/step02_denoise.py results/audio_16k.wav \
     --out results/audio_denoised.wav
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -16,9 +17,9 @@ for _parent in Path(__file__).resolve().parents:
             sys.path.insert(0, str(_parent))
         break
 
-from subtitle_pipeline.infrastructure.denoiser_deepfilternet import DeepFilterNetDenoiser
-
 from measure import measure
+
+from subtitle_pipeline.infrastructure.denoiser_deepfilternet import DeepFilterNetDenoiser
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -27,7 +28,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    with measure("step02_denoise_deepfilternet3", {"input": args.input}):
-        with DeepFilterNetDenoiser() as denoiser:
-            denoiser.denoise(Path(args.input), Path(args.out))
+    with (
+        measure("step02_denoise_deepfilternet3", {"input": args.input}),
+        DeepFilterNetDenoiser() as denoiser,
+    ):
+        denoiser.denoise(Path(args.input), Path(args.out))
     print(f"Denoised audio saved to {args.out}")

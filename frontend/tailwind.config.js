@@ -17,6 +17,16 @@ export default {
       fontFamily: {
         sans: ["Inter", "Segoe UI", "system-ui", "sans-serif"],
       },
+      keyframes: {
+        "loading-bar": {
+          "0%": { transform: "translateX(-100%)" },
+          "50%": { transform: "translateX(60%)" },
+          "100%": { transform: "translateX(220%)" },
+        },
+      },
+      animation: {
+        "loading-bar": "loading-bar 1.1s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

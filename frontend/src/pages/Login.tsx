@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import NavBar from "../components/NavBar";
+import Spinner from "../components/Spinner";
 
 export default function Login() {
   const { login } = useAuth();
@@ -56,6 +57,7 @@ export default function Login() {
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button className="btn-primary w-full justify-center" disabled={busy}>
+              {busy && <Spinner />}
               {busy ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
           </form>

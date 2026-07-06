@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import re
 import shutil
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-
 
 QUALITY_FORMATS = {
     "best": "bestvideo+bestaudio/best",
@@ -232,7 +232,5 @@ def _find_completed_file(download_dir: Path) -> Path | None:
 def _cleanup_download_temps(download_dir: Path) -> None:
     for path in download_dir.glob("_download_*"):
         if path.is_file():
-            try:
+            with suppress(OSError):
                 path.unlink()
-            except OSError:
-                pass

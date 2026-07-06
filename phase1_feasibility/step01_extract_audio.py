@@ -6,6 +6,7 @@ code se chay that trong production, khong phai mot ban sao co the lech nhau.
 
 Chay: python phase1_feasibility/step01_extract_audio.py samples/<file> --out results/audio_16k.wav
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -16,9 +17,9 @@ for _parent in Path(__file__).resolve().parents:
             sys.path.insert(0, str(_parent))
         break
 
-from subtitle_pipeline.infrastructure.audio import extract_audio
-
 from measure import measure
+
+from subtitle_pipeline.infrastructure.audio import extract_audio
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

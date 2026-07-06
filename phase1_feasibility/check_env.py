@@ -2,6 +2,7 @@
 
 Chay: python phase1_feasibility/check_env.py
 """
+
 import os
 import shutil
 import subprocess
@@ -36,12 +37,11 @@ def check_torch_cuda():
     print(f"[OK] torch: {torch.__version__}")
     if torch.cuda.is_available():
         name = torch.cuda.get_device_name(0)
-        total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+        total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         print(f"[OK] CUDA available: {name}, VRAM total: {total_vram_gb:.1f} GB")
     else:
         print(
-            "[WARNING] CUDA khong kha dung. Pipeline se chay CPU "
-            "(rat cham cho Whisper large-v3)."
+            "[WARNING] CUDA khong kha dung. Pipeline se chay CPU (rat cham cho Whisper large-v3)."
         )
     return True
 

@@ -8,6 +8,7 @@ de van thu thap duoc so lieu cua cac buoc chay duoc.
 
 Chay: python phase1_feasibility/run_all.py samples/<ten_file>
 """
+
 import argparse
 import subprocess
 import sys
@@ -17,13 +18,32 @@ STEPS = [
     ["step01_extract_audio.py", "{input}", "--out", "results/audio_16k.wav"],
     ["step02_denoise.py", "results/audio_16k.wav", "--out", "results/audio_denoised.wav"],
     ["step03_vad.py", "results/audio_denoised.wav", "--out", "results/vad_segments.json"],
-    ["step04_transcribe.py", "results/audio_denoised.wav",
-        "--model", "medium", "--out", "results/transcript_medium.json"],
-    ["step04_transcribe.py", "results/audio_denoised.wav",
-        "--model", "large-v3", "--compute-type", "int8_float16",
-        "--out", "results/transcript_large-v3.json"],
-    ["step05_align.py", "results/audio_denoised.wav",
-        "--transcript", "results/transcript_medium.json", "--out", "results/aligned.json"],
+    [
+        "step04_transcribe.py",
+        "results/audio_denoised.wav",
+        "--model",
+        "medium",
+        "--out",
+        "results/transcript_medium.json",
+    ],
+    [
+        "step04_transcribe.py",
+        "results/audio_denoised.wav",
+        "--model",
+        "large-v3",
+        "--compute-type",
+        "int8_float16",
+        "--out",
+        "results/transcript_large-v3.json",
+    ],
+    [
+        "step05_align.py",
+        "results/audio_denoised.wav",
+        "--transcript",
+        "results/transcript_medium.json",
+        "--out",
+        "results/aligned.json",
+    ],
     ["step06_diarize.py", "results/audio_denoised.wav", "--out", "results/diarization.json"],
 ]
 

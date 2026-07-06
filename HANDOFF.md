@@ -540,10 +540,35 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
 
 ## 6j. Wizard "Tao video" 6 buoc (nang cap lon 2026-07-03, tham chieu UI VietDub)
 
-**CAP NHAT 2026-07-05: da BO HOAN TOAN tinh nang dan URL YouTube/Douyin/TikTok
-o Buoc 1 (theo yeu cau nguoi dung "chi cho phep upload thoi") - xem muc 9
-nhat ky cung ngay. Phan "Buoc 1 - Nguon" mo ta duoi day GIU LAI de hieu boi
-canh lich su, nhung KHONG CON DUNG - wizard gio CHI nhan file upload.
+**CAP NHAT 2026-07-05 (lan 1): da BO HOAN TOAN tinh nang dan URL
+YouTube/Douyin/TikTok o Buoc 1 (theo yeu cau nguoi dung "chi cho phep upload
+thoi") - xem muc 9 nhat ky cung ngay.
+
+**CAP NHAT 2026-07-05 (lan 2, DAO NGUOC MOT PHAN quyet dinh tren): Codex (lam
+song song tren cung repo, xem quy uoc HANDOFF.md o dau file) da TU VIET LAI
+tinh nang tai video tu link trong 1 phien khac, KHONG biet quyet dinh xoa o
+tren - nguoi dung xac nhan MUON GIU LAI ban moi nay (khac ban cu da xoa: y
+khong con dung yt-dlp+cookie/Playwright nua, chi con yt-dlp thuan +
+endpoint `/api/jobs/source/analyze` xem truoc metadata/chon chat luong truoc
+khi tai). Da xac nhan qua boi canh cheo (git log + git grep) ban CU
+(`cookie_refresh.py`, dependency `playwright`, `YTDLP_COOKIES_FILE`,
+`storage/browser_profile/`) KHONG con sot lai gi - chi co dung 1 ban tai
+video DUY NHAT (ban moi cua Codex) trong repo, khong bi lan giua 2 cach.
+Phat hien + sua 1 bug that do merge 2 nhanh khong dong bo:
+`frontend/src/lib/constants.ts` (`PIPELINE_STEPS`) thieu stage `"download"`
+ma backend (`app/jobs/stages.py` `PIPELINE_STAGES`, do Codex viet lai) da co
+- hau qua: thanh tien do chi tiet hien SAI ten buoc ("Tach audio" thay vi
+"Tai video") luc job dang tai. Da them lai entry `download` vao
+`PIPELINE_STEPS` cho khop 1:1 voi backend (11 buoc ca 2 phia). Cung sua 1
+test cua Claude Code (`tests/test_pronunciation.py`) bi fail sau khi nguoi
+dung tu bo sung ~500 tu vao `pronunciation_glossary.json` (trong do co tu
+"Server" trung voi chuoi test mau "SQL server") - doi test dung glossary co
+dinh cuc bo thay vi doc file JSON that, tranh vo lai khi nguoi dung sua file.
+96/96 pytest pass, `npm run build` pass sau khi sua. Phan "Buoc 1 - Nguon" mo
+ta lich su ben duoi (viet luc tinh nang con dung yt-dlp+cookie cu) GIU LAI de
+hieu boi canh nhung CHI TIET KY THUAT co the KHONG con khop voi
+`downloader_ytdlp.py` hien tai (ban Codex viet lai hoan toan tu dau, khong
+dung cookie/Playwright) - xem code that trong repo de biet chinh xac.
 
 **Trang thai:** Code xong, `pytest` 76/76 pass + `ruff` sach (chay that tren
 may dev). **CHUA chay thu end-to-end qua UI** - can restart Celery worker +
@@ -1570,3 +1595,84 @@ la "ét quy eo". Da hoi lai nguoi dung 2 diem truoc khi code:
     buoc trung gian.
   `npm run build` pass (tsc + vite). Khong dong Python, khong can chay lai
   pytest.
+- 2026-07-05 (cung ngay, lan 6): **Phat hien tinh nang tai video tu link da
+  duoc Codex viet lai** (song song, khong biet quyet dinh xoa truoc do cua
+  nguoi dung) - nguoi dung xac nhan MUON GIU ban moi. Xem chi tiet muc 6j.
+  Tom tat: xac nhan ban CU (cookie/Playwright) da xoa sach khong lan voi ban
+  moi; sua bug parity `PIPELINE_STEPS` (frontend) thieu stage "download" so
+  voi backend gay hien sai ten buoc tren thanh tien do; sua 1 test cua chinh
+  minh (`test_pronunciation.py`) bi fail vi phu thuoc noi dung file JSON
+  nguoi dung tu sua. 96/96 pytest pass, `npm run build` pass.
+- 2026-07-05 (cung ngay, lan 7): **Them chi bao loading (spinner/skeleton)
+  cho toan bo thao tac trong UI React** theo yeu cau nguoi dung ("làm tăng
+  trải nghiệm người dùng qua các thanh load với tất cả thao tác"). Truoc do
+  cac nut bam mutation (dang nhap, dang ky, tao job, xoa/tao lai job, xoa
+  user, nghe thu giong, phan tich link) chi doi CHU (vd. "Dang tai...")
+  khong doi mau/icon, mot so noi (bang Admin) khong co bat ky dau hieu dang
+  tai nao. Them:
+  - `frontend/src/components/Spinner.tsx` - icon SVG xoay (dung class
+    Tailwind `animate-spin` co san), tai su dung moi noi.
+  - `frontend/src/components/GlobalLoadingBar.tsx` - thanh mong co dinh o
+    dau trang, TU DONG hien khi co BAT KY mutation nao dang chay
+    (`useIsMutating()`) HOAC lan fetch DAU TIEN cua 1 trang
+    (`useIsFetching({ predicate: query => query.state.data === undefined })`)
+    - dung predicate thay vi `useIsFetching()` tho de KHONG nhap nhay moi
+    lan cac trang co `refetchInterval` (Studio/JobDetail/Admin) tu poll
+    ngam o nen. Mount 1 lan duy nhat trong `App.tsx` nen ap dung cho TOAN BO
+    trang khong can sua tung noi.
+  - Them animation `loading-bar` (keyframe truot ngang, kieu thanh loading
+    cua GitHub/YouTube) vao `tailwind.config.js`.
+  - Gan `<Spinner />` canh chu vao TAT CA nut mutation: Login/Register submit,
+    NewJob (phan tich link, nghe thu giong, tao job), Studio (tung job rieng
+    biet dung `mutation.variables === job.id` de chi hien spinner dung
+    hang dang xu ly, khong phai ca danh sach), Admin (xoa user, cung ky
+    thuat `variables` per-row), JobDetail (chon noi luu video).
+  - Cai thien trang thai loading LAN DAU cua trang: Studio (skeleton
+    card `animate-pulse` thay vi chu "Dang tai..."), Admin (spinner + chu
+    trong bang users/jobs, truoc do KHONG co gi ca), JobDetail (spinner canh
+    chu), NewJob (spinner khi dang tai danh sach giong doc).
+  **Chua kiem tra bang mat trong trinh duyet that** (sandbox khong co
+  Postgres/Redis/Celery de dang nhap va kich hoat cac mutation that) - chi
+  xac nhan `npm run build` (tsc + vite) sach va da chay thu `vite dev` xac
+  nhan trang khoi dong khong loi runtime ngay lap tuc. Can nguoi dung tu mo
+  UI that de xem GlobalLoadingBar/skeleton hien dung nhu mong doi, dac biet
+  kiem tra KHONG bi nhap nhay do polling.
+- 2026-07-05 (cung ngay, lan 8): **Don dep code du thua/chua toi uu toan repo**
+  theo yeu cau nguoi dung. Da chay `ruff check .`/`ruff format .` tren TOAN
+  BO repo (truoc gio moi chi chay tren file vua sua trong tung phien) va sua
+  het 13 loi con sot lai:
+  - I001 (import chua sort) o `phase1_feasibility/step01/02/03/04/05.py` +
+    `subtitle_pipeline/infrastructure/downloader_ytdlp.py` - auto-fix.
+  - SIM117 (gop `with` long nhau) o 4 script `phase1_feasibility/step02/04/
+    05/06` - gop thanh 1 `with (A, B as b):` (Python 3.10+ parenthesized
+    context managers), khong doi hanh vi.
+  - SIM105 (`try/except OSError: pass` -> `contextlib.suppress(OSError)`)
+    o `app/jobs/tasks.py::_cleanup_downloaded_input` va
+    `subtitle_pipeline/infrastructure/downloader_ytdlp.py::_cleanup_download_temps`.
+  - **Phat hien + sua 1 BUG THAT (khong chi loi lint):**
+    `phase1_feasibility/step04_transcribe.py` goi
+    `transcriber.transcribe()` va coi ket qua la thang list segment, nhung
+    `FasterWhisperTranscriber.transcribe()` da doi sang tra ve
+    `tuple[list[TranscriptSegment], str]` (kem ngon ngu detect duoc) tu lan
+    sua bug dich sai ngon ngu nguon (xem muc 9, "2026-07-03 lan 9") - script
+    nay chua tung duoc cap nhat theo, se crash ngay o `asdict()` neu chay
+    (asdict() tren 1 list/string thay vi dataclass). Da sua: unpack dung
+    `segments, detected_language = transcriber.transcribe(...)`, in them
+    ngon ngu detect duoc ra console.
+  - **Rut gon 1 cho code lap:** `backend/routers/jobs.py` co 2 noi ghi
+    `job_config.json` giong het nhau (`_create_job_from_options` va
+    `rerun_job`) - gop thanh ham dung chung `_write_job_config(job_dir,
+    options)`.
+  - Da ra soat them (khong sua vi khong phai "du thua" ma la thieu sot CO
+    CHU DICH, da ghi ro trong HANDOFF tu truoc): `app/storage.py`
+    (`Storage`/`LocalStorage`/`S3Storage`) CHI duoc dung boi
+    `tests/test_storage.py`, chua duoc noi vao Upload/Celery task nao - day
+    la Phase 8 "chua lam" tu lau (xem muc 4/8), KHONG xoa vi la placeholder
+    co y cho tinh nang S3 sau nay, chi ghi nhan lai o day de nguoi dung
+    biet van con ton tai.
+  - Kiem tra frontend: `tsconfig.app.json` da bat san
+    `noUnusedLocals`/`noUnusedParameters` (strict) nen KHONG co import/bien
+    thua nao (xac nhan qua `npm run build` sach) - khong co ESLint rieng
+    trong repo nay.
+  Xac nhan **96/96 pytest pass, `ruff check`/`ruff format --check` sach
+  toan repo, `npm run build` pass** sau khi don dep.

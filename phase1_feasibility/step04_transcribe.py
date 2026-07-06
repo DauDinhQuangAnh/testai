@@ -10,6 +10,7 @@ Chay:
   python phase1_feasibility/step04_transcribe.py results/audio_denoised.wav \
       --model large-v3 --compute-type int8_float16
 """
+
 import argparse
 import json
 import sys
@@ -22,9 +23,9 @@ for _parent in Path(__file__).resolve().parents:
             sys.path.insert(0, str(_parent))
         break
 
-from subtitle_pipeline.infrastructure.transcriber_faster_whisper import FasterWhisperTranscriber
-
 from measure import measure
+
+from subtitle_pipeline.infrastructure.transcriber_faster_whisper import FasterWhisperTranscriber
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -43,10 +44,15 @@ if __name__ == "__main__":
     segments = []
     step_name = f"step04_transcribe_{args.model}_{args.compute_type}"
     extra = {"model": args.model, "compute_type": args.compute_type, "device": args.device}
-    with measure(step_name, extra):
-        with FasterWhisperTranscriber(args.model, args.compute_type, args.device) as transcriber:
-            segments = transcriber.transcribe(Path(args.input))
+    with (
+        measure(step_name, extra),
+        FasterWhisperTranscriber(args.model, args.compute_type, args.device) as transcriber,
+    ):
+        segments, detected_language = transcriber.transcribe(Path(args.input))
 
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump([asdict(seg) for seg in segments], f, ensure_ascii=False, indent=2)
-    print(f"Transcribed {len(segments)} segments -> {out_path}")
+    print(
+        f"Transcribed {len(segments)} segments "
+        f"(detected language: {detected_language}) -> {out_path}"
+    )

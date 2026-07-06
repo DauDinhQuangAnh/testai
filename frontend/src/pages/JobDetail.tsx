@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import NavBar from "../components/NavBar";
+import Spinner from "../components/Spinner";
 import StageProgress from "../components/StageProgress";
 import { api, fileUrl } from "../lib/api";
 import { STATUS_LABELS } from "../lib/constants";
@@ -48,7 +49,9 @@ export default function JobDetail() {
     return (
       <div className="min-h-screen">
         <NavBar />
-        <main className="mx-auto max-w-4xl px-4 py-8 text-ink-soft">Đang tải...</main>
+        <main className="mx-auto flex max-w-4xl items-center gap-2 px-4 py-8 text-ink-soft">
+          <Spinner /> Đang tải...
+        </main>
       </div>
     );
   }
@@ -143,6 +146,7 @@ export default function JobDetail() {
                     disabled={isSaving}
                     onClick={() => saveVideoAs(resultVideo.name)}
                   >
+                    {isSaving && <Spinner className="h-3 w-3" />}
                     {isSaving ? "Đang lưu..." : "Chọn nơi lưu"}
                   </button>
                   <a href={fileUrl(id, resultVideo.name)} download className="btn-primary">

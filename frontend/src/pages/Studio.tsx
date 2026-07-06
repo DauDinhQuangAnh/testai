@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import NavBar from "../components/NavBar";
+import Spinner from "../components/Spinner";
 import StageProgress from "../components/StageProgress";
 import { api } from "../lib/api";
 import { STATUS_LABELS } from "../lib/constants";
@@ -97,7 +98,13 @@ export default function Studio() {
           ))}
         </div>
 
-        {isLoading && <p className="text-ink-soft">Đang tải...</p>}
+        {isLoading && (
+          <div className="space-y-4">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="card h-24 animate-pulse bg-cream-dark/60" />
+            ))}
+          </div>
+        )}
         {!isLoading && visible.length === 0 && (
           <div className="card py-12 text-center text-ink-soft">
             Chưa có job nào.{" "}
@@ -143,17 +150,25 @@ export default function Studio() {
                   </Link>
                   <button
                     className="btn-ghost px-3 py-1 text-xs"
+                    disabled={rerunJob.isPending && rerunJob.variables === job.id}
                     onClick={() => rerunJob.mutate(job.id)}
                   >
+                    {rerunJob.isPending && rerunJob.variables === job.id && (
+                      <Spinner className="h-3 w-3" />
+                    )}
                     Tạo lại
                   </button>
                   <button
                     className="btn-ghost px-3 py-1 text-xs text-red-600 hover:border-red-400"
+                    disabled={deleteJob.isPending && deleteJob.variables === job.id}
                     onClick={() => {
                       if (confirm(`Xóa vĩnh viễn job "${job.filename}"?`))
                         deleteJob.mutate(job.id);
                     }}
                   >
+                    {deleteJob.isPending && deleteJob.variables === job.id && (
+                      <Spinner className="h-3 w-3" />
+                    )}
                     Xóa
                   </button>
                 </span>

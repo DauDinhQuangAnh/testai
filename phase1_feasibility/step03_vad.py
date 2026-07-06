@@ -8,12 +8,12 @@ dung o day.
 Chay: python phase1_feasibility/step03_vad.py results/audio_denoised.wav \
     --out results/vad_segments.json
 """
+
 import argparse
 import json
 from pathlib import Path
 
 import torch
-
 from measure import measure
 
 

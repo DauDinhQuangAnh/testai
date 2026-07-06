@@ -42,7 +42,9 @@ def test_resolve_job_override_replaces_default_entry():
 
 
 def test_apply_pronunciation_replaces_whole_word_case_insensitively():
-    glossary = resolve_pronunciation_glossary("vi")
+    # Dung glossary co dinh (khong phai file JSON that) de test nay khong vo
+    # khi nguoi dung tu bo sung tu moi vao pronunciation_glossary.json.
+    glossary = {"sql": "ét quy eo"}
 
     result = apply_pronunciation("Học SQL và sql server rất vui", glossary)
 

@@ -71,10 +71,11 @@ export const STATUS_LABELS: Record<string, string> = {
   failed: "Thất bại",
 };
 
-// Khop app/jobs/stages.py PIPELINE_STAGES (10 buoc) - dung cho progress bar
+// Khop app/jobs/stages.py PIPELINE_STAGES (11 buoc) - dung cho progress bar
 // nhieu doan.
 export const PIPELINE_STEPS = [
   { key: "starting", label: "Khởi động" },
+  { key: "download", label: "Tải video" },
   { key: "extract_audio", label: "Tách audio" },
   { key: "denoise", label: "Khử ồn" },
   { key: "transcribe", label: "Nhận diện lời nói" },

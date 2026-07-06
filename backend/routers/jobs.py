@@ -36,6 +36,12 @@ _VIDEO_SUFFIXES = {".mp4", ".mkv", ".mov", ".webm"}
 _DOWNLOAD_QUALITIES = {"best", "1080p", "720p", "480p"}
 
 
+def _write_job_config(job_dir: Path, options: dict) -> None:
+    (job_dir / "job_config.json").write_text(
+        json.dumps(options, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
 def _get_owned_job(job_id: str, user: AuthUser) -> Job:
     job = job_repo().get(job_id)
     if job is None:
@@ -84,9 +90,7 @@ def _create_job_from_options(
     else:
         raise HTTPException(status_code=400, detail="Cần file upload hoặc link video")
 
-    (job_dir / "job_config.json").write_text(
-        json.dumps(options, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    _write_job_config(job_dir, options)
     job = job_repo().create(
         filename=filename,
         input_path=input_path,
@@ -177,9 +181,7 @@ def rerun_job(job_id: str, user: AuthUser = Depends(get_current_user)) -> JobOut
         input_path = new_dir / filename
         shutil.copy2(source_file, input_path)
 
-    (new_dir / "job_config.json").write_text(
-        json.dumps(options, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    _write_job_config(new_dir, options)
     new_job = job_repo().create(
         filename=filename,
         input_path=input_path,

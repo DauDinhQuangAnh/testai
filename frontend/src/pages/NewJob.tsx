@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import NavBar from "../components/NavBar";
+import Spinner from "../components/Spinner";
 import { api } from "../lib/api";
 import {
   FONT_CHOICES,
@@ -70,7 +71,7 @@ export default function NewJob() {
     queryKey: ["languages"],
     queryFn: () => api.get<{ targets: string[]; sources: string[] }>("/api/meta/languages"),
   });
-  const { data: voices = [] } = useQuery({
+  const { data: voices = [], isLoading: voicesLoading } = useQuery({
     queryKey: ["voices", options.dubbing.target_language],
     queryFn: () => api.get<VoiceInfo[]>(`/api/meta/voices/${options.dubbing.target_language}`),
   });
@@ -332,6 +333,7 @@ export default function NewJob() {
                             disabled={analyzeSource.isPending}
                             onClick={() => analyzeSource.mutate()}
                           >
+                            {analyzeSource.isPending && <Spinner />}
                             {analyzeSource.isPending ? "Đang đọc..." : "Phân tích"}
                           </button>
                         </div>
@@ -479,6 +481,11 @@ export default function NewJob() {
 
                       <div>
                         <label className="label">Giọng đọc</label>
+                        {voicesLoading && (
+                          <p className="flex items-center gap-2 py-2 text-sm text-ink-soft">
+                            <Spinner /> Đang tải danh sách giọng...
+                          </p>
+                        )}
                         <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
                           {voices.map((v) => (
                             <button
@@ -554,6 +561,7 @@ export default function NewJob() {
                           onClick={() => previewVoice.mutate()}
                           disabled={previewVoice.isPending}
                         >
+                          {previewVoice.isPending && <Spinner />}
                           {previewVoice.isPending ? "Đang tạo mẫu..." : "▶ Nghe thử giọng này"}
                         </button>
                         {sampleUrl && <audio ref={audioRef} controls src={sampleUrl} />}
@@ -1013,6 +1021,7 @@ export default function NewJob() {
                     disabled={!sourceValid || createJob.isPending}
                     onClick={() => createJob.mutate()}
                   >
+                    {createJob.isPending && <Spinner className="h-5 w-5" />}
                     {createJob.isPending
                       ? sourceMode === "download"
                         ? "Đang tạo job tải video..."

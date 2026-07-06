@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import { AuthProvider, RequireAdmin, RequireAuth } from "./auth/AuthContext";
+import GlobalLoadingBar from "./components/GlobalLoadingBar";
 import Admin from "./pages/Admin";
 import JobDetail from "./pages/JobDetail";
 import Landing from "./pages/Landing";
@@ -13,6 +14,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <GlobalLoadingBar />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />

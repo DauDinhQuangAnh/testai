@@ -6,6 +6,7 @@ pyannote/speaker-diarization-3.1 + pyannote/segmentation-3.0 tren HuggingFace.
 
 Chay: python phase1_feasibility/step06_diarize.py results/audio_denoised.wav
 """
+
 import argparse
 import json
 import os
@@ -21,9 +22,9 @@ for _parent in Path(__file__).resolve().parents:
             sys.path.insert(0, str(_parent))
         break
 
-from subtitle_pipeline.infrastructure.diarizer_pyannote import PyannoteDiarizer
-
 from measure import measure
+
+from subtitle_pipeline.infrastructure.diarizer_pyannote import PyannoteDiarizer
 
 load_dotenv()
 
@@ -40,9 +41,11 @@ if __name__ == "__main__":
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     turns = []
-    with measure("step06_diarize_pyannote", {"device": args.device}):
-        with PyannoteDiarizer(hf_token, args.device) as diarizer:
-            turns = diarizer.diarize(Path(args.input))
+    with (
+        measure("step06_diarize_pyannote", {"device": args.device}),
+        PyannoteDiarizer(hf_token, args.device) as diarizer,
+    ):
+        turns = diarizer.diarize(Path(args.input))
 
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump([asdict(t) for t in turns], f, ensure_ascii=False, indent=2)
