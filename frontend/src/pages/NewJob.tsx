@@ -25,6 +25,7 @@ const STEPS = [
 export default function NewJob() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  const [maxStepReached, setMaxStepReached] = useState(0);
   const [options, setOptions] = useState<JobOptions>(defaultOptions());
   const [file, setFile] = useState<File | null>(null);
   const [presetIndex, setPresetIndex] = useState(0);
@@ -82,6 +83,9 @@ export default function NewJob() {
   });
 
   const sourceValid = Boolean(file);
+  // Chi Buoc 1 (Nguon) co dieu kien bat buoc that su (phai chon file) - cac
+  // buoc sau deu co gia tri mac dinh hop le nen luon cho qua.
+  const canAdvanceFromStep = (index: number) => (index === 0 ? sourceValid : true);
   const selectedVoice =
     voices.find((v) => v.id === options.dubbing.voice) ?? voices[0] ?? null;
 
@@ -92,6 +96,7 @@ export default function NewJob() {
     if (key === "source") {
       patch({ source: defaults.source });
       setFile(null);
+      setMaxStepReached(0);
       return;
     }
     if (key === "voice") {
@@ -117,6 +122,8 @@ export default function NewJob() {
     setFile(null);
     setPresetIndex(0);
     setSampleUrl(null);
+    setMaxStepReached(0);
+    setStep(0);
   };
 
   return (
@@ -139,34 +146,41 @@ export default function NewJob() {
           {/* Stepper sidebar */}
           <aside className="lg:w-60">
             <ol className="flex gap-2 overflow-x-auto lg:flex-col">
-              {STEPS.map((s, i) => (
-                <li key={s.key}>
-                  <button
-                    onClick={() => setStep(i)}
-                    className={
-                      "w-full rounded-xl border px-4 py-3 text-left transition " +
-                      (i === step
-                        ? "border-primary bg-primary-soft"
-                        : "border-line bg-white hover:border-primary/40")
-                    }
-                  >
-                    <span
+              {STEPS.map((s, i) => {
+                const locked = i > maxStepReached;
+                return (
+                  <li key={s.key}>
+                    <button
+                      disabled={locked}
+                      onClick={() => setStep(i)}
+                      title={locked ? "Hoàn thành các bước trước để mở khóa" : undefined}
                       className={
-                        "mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold " +
-                        (i < step
-                          ? "bg-green-500 text-white"
-                          : i === step
-                            ? "bg-primary text-white"
-                            : "bg-cream-dark text-ink-soft")
+                        "w-full rounded-xl border px-4 py-3 text-left transition " +
+                        (i === step
+                          ? "border-primary bg-primary-soft"
+                          : locked
+                            ? "cursor-not-allowed border-line bg-white opacity-50"
+                            : "border-line bg-white hover:border-primary/40")
                       }
                     >
-                      {i < step ? "✓" : i + 1}
-                    </span>
-                    <span className="font-medium">{s.title}</span>
-                    <p className="ml-8 text-xs text-ink-soft">{s.desc}</p>
-                  </button>
-                </li>
-              ))}
+                      <span
+                        className={
+                          "mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold " +
+                          (i < step
+                            ? "bg-green-500 text-white"
+                            : i === step
+                              ? "bg-primary text-white"
+                              : "bg-cream-dark text-ink-soft")
+                        }
+                      >
+                        {i < step ? "✓" : locked ? "🔒" : i + 1}
+                      </span>
+                      <span className="font-medium">{s.title}</span>
+                      <p className="ml-8 text-xs text-ink-soft">{s.desc}</p>
+                    </button>
+                  </li>
+                );
+              })}
             </ol>
           </aside>
 
@@ -840,7 +854,19 @@ export default function NewJob() {
                 ← Quay lại
               </button>
               {step < STEPS.length - 1 && (
-                <button className="btn-primary" onClick={() => setStep((s) => s + 1)}>
+                <button
+                  className="btn-primary"
+                  disabled={!canAdvanceFromStep(step)}
+                  title={
+                    canAdvanceFromStep(step)
+                      ? undefined
+                      : "Vui lòng chọn file video trước khi tiếp tục"
+                  }
+                  onClick={() => {
+                    setMaxStepReached((m) => Math.max(m, step + 1));
+                    setStep((s) => s + 1);
+                  }}
+                >
                   Tiếp tục →
                 </button>
               )}

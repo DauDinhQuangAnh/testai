@@ -1548,3 +1548,25 @@ la "ét quy eo". Da hoi lai nguoi dung 2 diem truoc khi code:
   2, chi thieu hien thi lai). 94/94 pytest pass, ruff sach, `npm run build`
   pass. **Chua nghe thu that voi edge-tts** de xac nhan phat am "ét quy eo"
   nghe tu nhien hon "SQL" nguyen ban.
+- 2026-07-05 (cung ngay, lan 5): **Khoa tuan tu cac buoc wizard "Tao video"**
+  theo yeu cau nguoi dung ("phai xong tung buoc roi moi cho phep qua buoc
+  moi... co the quay lai va luu cac cai da chinh chu khong mat di"). Truoc do
+  sidebar cho bam thang toi bat ky buoc nao (kem "Tiep tuc" khong kiem tra
+  gi), du chua chon file o Buoc 1. `frontend/src/pages/NewJob.tsx`:
+  - State moi `maxStepReached` (buoc xa nhat da tung mo khoa, khoi tao 0).
+    Nut "Tiep tuc" chi bat khi `canAdvanceFromStep(step)` dung (hien chi
+    Buoc 1 co dieu kien that: phai chon file - cac buoc sau deu co gia tri
+    mac dinh hop le nen luon qua duoc), va khi bam thi nang
+    `maxStepReached` len `step + 1`.
+  - Nut sidebar cho tung buoc: disable (kem icon khoa 🔒 + tooltip) neu
+    `i > maxStepReached`. Di LUI (bam sidebar buoc nho hon, hoac nut "Quay
+    lai") luon duoc phep vi `i <= maxStepReached` da dung; du lieu nguoi
+    dung nhap o `options`/`file` KHONG bi xoa khi chuyen qua lai giua cac
+    buoc (chi bi xoa khi tu bam "Dat lai buoc nay"/"Dat lai tat ca").
+  - "Dat lai buoc nay" tren Buoc 1 (xoa file) va "Dat lai tat ca" (Buoc 6)
+    deu dua `maxStepReached` ve 0 (khoa lai cac buoc sau, dung vi nguon
+    khong con hop le) - rieng "Dat lai tat ca" chuyen luon ve Buoc 1 de
+    tranh ket lai o Buoc 6 (`step` cu) trong khi sidebar da khoa het cac
+    buoc trung gian.
+  `npm run build` pass (tsc + vite). Khong dong Python, khong can chay lai
+  pytest.
