@@ -19,6 +19,26 @@ class LoginIn(BaseModel):
     password: str
 
 
+class VideoAnalyzeIn(BaseModel):
+    url: str
+
+
+class QualityOptionOut(BaseModel):
+    id: str
+    label: str
+    format: str
+
+
+class VideoMetadataOut(BaseModel):
+    url: str
+    title: str
+    thumbnail: str | None = None
+    duration: int | None = None
+    uploader: str | None = None
+    source: str | None = None
+    qualities: list[QualityOptionOut]
+
+
 class UserOut(BaseModel):
     id: str
     email: str

@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 import backend.db as backend_db
 from app.db.models import Base
 from backend.main import app
+from subtitle_pipeline.infrastructure.downloader_ytdlp import QualityOption, VideoMetadata
 
 
 @pytest.fixture()
@@ -111,6 +112,59 @@ def test_create_upload_job_enqueues_task(client):
 
     assert job["status"] == "queued"
     assert client.enqueued and client.enqueued[0][0] == job["id"]
+
+
+def test_analyze_source_returns_video_metadata(client, monkeypatch):
+    token = _register(client)["token"]
+
+    monkeypatch.setattr(
+        "backend.routers.jobs.analyze_video",
+        lambda url: VideoMetadata(
+            url=url,
+            title="Demo video",
+            thumbnail="https://example.test/thumb.jpg",
+            duration=65,
+            uploader="Uploader",
+            source="Youtube",
+            qualities=[QualityOption("best", "Tot nhat", "bestvideo+bestaudio/best")],
+        ),
+    )
+
+    res = client.post(
+        "/api/jobs/source/analyze",
+        json={"url": "https://www.youtube.com/watch?v=abc123"},
+        headers=_auth_headers(token),
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json()["title"] == "Demo video"
+    assert res.json()["qualities"][0]["id"] == "best"
+
+
+def test_create_download_job_enqueues_task_without_upload(client):
+    token = _register(client)["token"]
+    options = {
+        "source": {
+            "download": {
+                "url": "https://www.youtube.com/watch?v=abc123",
+                "quality": "720p",
+                "title": "Demo video",
+            }
+        },
+        "dubbing": {"enabled": False},
+    }
+
+    res = client.post(
+        "/api/jobs",
+        data={"options": json.dumps(options)},
+        headers=_auth_headers(token),
+    )
+
+    assert res.status_code == 200, res.text
+    job = res.json()
+    assert job["filename"] == "Demo video.mp4"
+    assert client.enqueued and client.enqueued[0][0] == job["id"]
+    assert client.enqueued[0][1]["source"]["input_mode"] == "download"
 
 
 def test_create_job_without_file_rejected(client):

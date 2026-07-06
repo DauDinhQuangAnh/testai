@@ -23,6 +23,7 @@ from subtitle_pipeline.config import PipelineConfig
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.export.formats import FORMAT_WRITERS, SubtitleStyle
 from subtitle_pipeline.infrastructure.audio import trim_media
+from subtitle_pipeline.infrastructure.downloader_ytdlp import download_video
 from subtitle_pipeline.infrastructure.transcriber_faster_whisper import FasterWhisperTranscriber
 
 
@@ -55,12 +56,27 @@ def _resolve_input(job: Job, source: dict) -> Path:
     job_dir = Path(job.output_dir).parent
     input_path = Path(job.input_path)
 
+    download = source.get("download") or {}
+    if source.get("input_mode") == "download" and download.get("url"):
+        download_video(download["url"], download.get("quality", "best"), input_path)
+
     trim_seconds = source.get("trim_seconds")
     if trim_seconds:
         trimmed = job_dir / f"_trimmed_{trim_seconds}s{input_path.suffix}"
         trim_media(input_path, trimmed, trim_seconds)
         return trimmed
     return input_path
+
+
+def _cleanup_downloaded_input(job: Job) -> None:
+    job_dir = Path(job.output_dir).parent
+    input_path = Path(job.input_path)
+    for path in [input_path, *job_dir.glob("_trimmed_*")]:
+        if path.is_file():
+            try:
+                path.unlink()
+            except OSError:
+                pass
 
 
 @celery_app.task(name="app.jobs.tasks.process_video_job")
@@ -83,6 +99,9 @@ def process_video_job(job_id: str, options: dict | None = None) -> None:
     try:
         config = PipelineConfig.from_env()
         source = options.get("source") or {}
+        downloaded_source = source.get("input_mode") == "download"
+        if downloaded_source:
+            on_stage("download")
         input_path = _resolve_input(job, source)
 
         # Ep cung ngon ngu nguon neu nguoi dung chon (mac dinh auto-detect).
@@ -156,6 +175,10 @@ def process_video_job(job_id: str, options: dict | None = None) -> None:
     except Exception as exc:
         repo.update_status(job_id, status=JobStatus.FAILED, stage=None, error_message=str(exc))
         raise
+    finally:
+        source = options.get("source") or {}
+        if source.get("input_mode") == "download":
+            _cleanup_downloaded_input(job)
 
 
 def _read_source_language(out_dir: Path, stem: str, config: PipelineConfig) -> str:
