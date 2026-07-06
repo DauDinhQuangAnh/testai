@@ -831,15 +831,29 @@ bo job, thu xoa user. Bao loi de sua tiep.
   **Anh huong DB:** day la thay doi schema (bo cot/bang) - `create_all()`
   KHONG tu xoa cot/bang cu, xem canh bao reset DB o muc 8.
 
-## 6l. Tu dong lay cookie YouTube/Douyin bang Playwright (2026-07-05, DA XOA cung ngay)
+## 6l. Tu dong lay cookie YouTube bang Playwright (2026-07-05, xoa roi KHOI PHUC lai cung ngay)
 
-**DA XOA HOAN TOAN cung ngay 2026-07-05** khi nguoi dung quyet dinh bo tinh
-nang tai video tu URL (xem muc 9 nhat ky) - toan bo muc nay (bao gom code,
-dependency Playwright, nut "Lam moi cookie" o Admin) khong con ton tai trong
-repo. GIU LAI phan mo ta duoi day CHI de hieu boi canh/ly do da tung nghien
-cuu Douyin/YouTube cookie (vd. neu sau nay can lam lai tinh nang tai URL).
+**Dong doi 2 lan trong cung 1 ngay - doc ky de khoi nham lan:**
+1. Xoa hoan toan cung luc voi tinh nang tai URL (theo yeu cau "chi cho phep
+   upload thoi") - xem muc 9 nhat ky lan lien quan.
+2. Codex (lam song song, xem quy uoc HANDOFF.md dau file) sau do TU VIET LAI
+   tinh nang tai video tu link (dua theo repo tham khao cua nguoi dung,
+   github.com/DauDinhQuangAnh/Youtube_link) nhung KHONG co co che cookie -
+   dan den tai lai dung loi cu "Sign in to confirm you're not a bot" ma muc
+   nay tung duoc tao ra de giai quyet. Da doi chieu repo tham khao: repo do
+   **KHONG xu ly van de nay** (README ghi ro "intentionally does not
+   include ... anti-bot circumvention"), nen khong co gi de "hoc theo" tu
+   do - phai tu khoi phuc lai co che cookie cua chinh du an nay.
+3. Nguoi dung xac nhan chon khoi phuc Playwright auto-refresh (thay vi
+   cookies.txt thu cong hoac chap nhan gioi han) - **DA KHOI PHUC LAI**, xem
+   "Cap nhat 2026-07-05 (khoi phuc)" o cuoi muc nay. Module/endpoint/nut UI
+   mo ta ben duoi (viet luc con Douyin trong scope) **VAN CON DUNG THAT**,
+   chi khac 1 diem: ban khoi phuc bo Douyin khoi `DEFAULT_SITES` (chi con
+   YouTube, khop dung scope hien tai cua `downloader_ytdlp.py` - khong con
+   nhac gi toi Douyin nua).
 
-**Trang thai (LICH SU, KHONG CON DUNG):** Code xong, test that (107/107 pytest pass, ruff sach,
+**Trang thai (lich su luc viet lan dau - xem cap nhat khoi phuc o cuoi muc
+de biet trang thai THAT hien tai):** Code xong, test that (107/107 pytest pass, ruff sach,
 `npm run build` pass). Da smoke-test THAT tren may (Playwright + Chromium
 that, khong gia lap) - xem phat hien quan trong ve Douyin ben duoi.
 
@@ -936,6 +950,49 @@ can deploy that.
 5. Restart Celery worker sau khi cookies.txt duoc tao/cap nhat lan dau (de
    chac chan doc dung file moi - thuc ra `YTDLP_COOKIES_FILE` doc lai moi
    lan tai, khong can restart, nhung restart 1 lan cho chac an toan).
+
+**Cap nhat 2026-07-05 (khoi phuc, sau khi bi xoa roi gap lai loi cu):**
+Nguoi dung bao loi that "Sign in to confirm you're not a bot" khi dung
+tinh nang tai video tu link (ban Codex viet lai, khong co cookie). Da doi
+chieu repo tham khao nguoi dung dua (github.com/DauDinhQuangAnh/Youtube_link,
+clone ve doc source that) - xac nhan repo do **cung khong xu ly duoc van de
+nay** (ghi ro trong README, `friendly_yt_dlp_error` khong co nhanh nao cho
+"not a bot"/cookie). Nguoi dung chon khoi phuc lai Playwright auto-refresh
+(so voi 2 phuong an khac: cookies.txt thu cong, hoac chap nhan gioi han).
+Da khoi phuc + noi vao dung cau truc MOI cua `downloader_ytdlp.py` (khac
+ban cu o cho: khong con Douyin trong scope, dung `analyze_video()`/
+`download_video()` thay vi ham cu):
+- `subtitle_pipeline/infrastructure/cookie_refresh.py` - khoi phuc gan
+  nguyen ban tu git history (commit `d3d4a1b`), CHI bo Douyin khoi
+  `DEFAULT_SITES` (chi con `{"youtube": "https://www.youtube.com/"}` - dung
+  huong dan setup/refresh, dinh dang Netscape cookie giu nguyen).
+- `subtitle_pipeline/infrastructure/downloader_ytdlp.py`: them ham moi
+  `_cookie_options()` (doc `YTDLP_COOKIES_FILE` tu env, tra ve
+  `{"cookiefile": path}` neu file ton tai, nguoc lai `{}`) va spread vao
+  dict `opts` cua CA `analyze_video()` lan `download_video()` (repo tham
+  khao/ban Codex ca 2 ham nay von khong truyen cookie gi ca). Them nhanh
+  moi trong `friendly_yt_dlp_error()` nhan dien "sign in to confirm"/"not a
+  bot"/"fresh cookies"/"cookies are needed" -> tra ve thong bao huong dan
+  bam "Lam moi cookie" trong Admin.
+- `backend/routers/admin.py`: khoi phuc `POST /admin/refresh-cookies`
+  (giong het logic cu, goi `refresh_cookies()` qua `asyncio.to_thread`).
+- `frontend/src/pages/Admin.tsx`: khoi phuc section "Cookie tải video
+  (YouTube)" + nut "Làm mới cookie" (bo cau chu ve Douyin khoi mo ta, chi
+  con nhac YouTube).
+- `requirements.txt`: them lai `playwright>=1.47.0`. `.env.example`: them
+  lai `YTDLP_COOKIES_FILE=cookies.txt` kem huong dan setup.
+- Test: khoi phuc `tests/test_cookie_refresh.py` (bo cac test-case rieng
+  cho Douyin, chi giu test chung cho ham thuan `_cookie_to_netscape_line`/
+  `_write_netscape_file`); them moi `tests/test_downloader.py` (module nay
+  TRUOC DAY CHUA CO TEST NAO - kiem tra `_cookie_options()` + nhanh bot-check
+  moi trong `friendly_yt_dlp_error()`); them 3 test cho endpoint
+  `/admin/refresh-cookies` trong `tests/test_backend_api.py`.
+114/114 pytest pass, ruff sach, `npm run build` pass. **Chua chay
+`--setup`/`--refresh` that voi Chromium that trong phien nay** (sandbox
+khong the mo trinh duyet that) - nguoi dung can tu chay
+`pip install -r requirements.txt` + `python -m playwright install chromium`
++ `python -m subtitle_pipeline.infrastructure.cookie_refresh --setup` roi
+thu tai lai 1 video YouTube tung bi chan de xac nhan het loi.
 
 ## 6m. Bang phat am rieng cho giong doc long tieng (2026-07-05)
 
@@ -1676,3 +1733,62 @@ la "ét quy eo". Da hoi lai nguoi dung 2 diem truoc khi code:
     trong repo nay.
   Xac nhan **96/96 pytest pass, `ruff check`/`ruff format --check` sach
   toan repo, `npm run build` pass** sau khi don dep.
+- 2026-07-05 (cung ngay, lan 9): **Them tinh nang gui email khi job hoan
+  thanh** theo yeu cau nguoi dung ("2 chuc nang la tai ve hoac gui ve mail o
+  buoc cuoi"). Da hoi lai nguoi dung 2 quyet dinh truoc khi code:
+  - **Chi gui LINK toi trang chi tiet job, KHONG dinh kem video** - video
+    long tieng thuong vuot gioi han dinh kem cua hau het nha cung cap email
+    (vd. Gmail ~25MB), de bi bounce/vao spam.
+  - **Dung Gmail SMTP + App Password** (khong phai dich vu transactional
+    email rieng) - phu hop tool ca nhan, khong can dang ky them tai khoan.
+  Kien truc:
+  - `backend/email_sender.py` (module moi) - dung `smtplib` chuan cua
+    Python (KHONG them dependency moi vao requirements.txt).
+    `send_job_result_email(to_email, job_id, filename)` gui email chua link
+    `{FRONTEND_URL}/studio/jobs/{job_id}` toi email DA DANG KY tai khoan
+    (`AuthUser.email` co san trong `backend/security.py`, khong can hoi lai
+    nguoi dung). Link KHONG chua token (khac `fileUrl()` dung cho
+    `<video src>`) - nguoi nhan phai dang nhap lai de xem, an toan hon neu
+    email bi forward/leak. Rai `EmailNotConfiguredError` neu chua dien
+    `SMTP_USER`/`SMTP_PASSWORD` trong `.env`.
+  - `backend/routers/jobs.py`: them `POST /jobs/{id}/send-email` (chi cho
+    phep khi `job.status == JobStatus.DONE`, dung lai `_get_owned_job` de
+    kiem tra quyen so huu) - tra 400 neu job chua xong, 503 neu SMTP chua
+    cau hinh, 502 neu gui that bai (loi mang/dang nhap SMTP sai).
+  - `.env.example`: them `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/
+    `SMTP_PASSWORD`/`SMTP_FROM_NAME` + `FRONTEND_URL` (dung de dung link
+    trong email) kem huong dan tao Gmail App Password.
+  - `frontend/src/pages/JobDetail.tsx`: them nut "Gui ve email" canh "Chon
+    noi luu"/"Tai video" trong the "Clip ket qua", dung `useMutation` + hien
+    `<Spinner>` luc dang gui (nhat quan voi cac nut mutation khac da them o
+    lan sua truoc), hien thong bao thanh cong/loi ngay duoi.
+  - Test moi: `tests/test_email_sender.py` (mock `smtplib.SMTP_SSL`, xac
+    nhan gui dung link + KHONG dinh kem file, rai loi khi chua cau hinh) +
+    3 test trong `tests/test_backend_api.py` (tu choi khi job chua DONE,
+    gui dung email da dang ky, tra 502 khi SMTP loi).
+  **Chua gui thu email that** (sandbox khong the ket noi SMTP that ra
+  ngoai) - nguoi dung can tu dien `SMTP_USER`/`SMTP_PASSWORD` (Gmail App
+  Password) vao `.env` roi bam thu nut "Gui ve email" tren 1 job DONE that
+  de xac nhan nhan duoc mail + link mo dung trang job. Xac nhan **101/101
+  pytest pass, ruff sach, `npm run build` pass**.
+- 2026-07-05 (cung ngay, lan 10): **Khoi phuc co che Playwright tu dong lay
+  cookie YouTube** (da bi xoa truoc do cung ngay) sau khi nguoi dung bao
+  gap lai loi that "Sign in to confirm you're not a bot" tren tinh nang tai
+  video tu link ban Codex viet lai (khong co cookie). Nguoi dung dua repo
+  tham khao github.com/DauDinhQuangAnh/Youtube_link - da clone ve doc source
+  that, xac nhan repo do **cung KHONG xu ly duoc van de nay** (README ghi ro
+  "intentionally does not include anti-bot circumvention"), nen khong dung
+  de "hoc theo" duoc ma phai tu khoi phuc co che cookie cua chinh du an.
+  Xem chi tiet muc 6l "Cap nhat 2026-07-05 (khoi phuc)". Tom tat: khoi phuc
+  `subtitle_pipeline/infrastructure/cookie_refresh.py` (tu git history, bo
+  Douyin khoi scope) + noi vao `downloader_ytdlp.py` qua ham moi
+  `_cookie_options()` (ca `analyze_video()` va `download_video()`) + nhan
+  dien loi bot-check trong `friendly_yt_dlp_error()` + khoi phuc endpoint
+  `POST /admin/refresh-cookies` va nut "Làm mới cookie" trong Admin.tsx +
+  them lai dependency `playwright` va bien env `YTDLP_COOKIES_FILE`. Them
+  moi `tests/test_downloader.py` (module nay truoc gio chua co test nao).
+  114/114 pytest pass, ruff sach, `npm run build` pass. **Chua chay
+  `--setup`/`--refresh` voi Chromium that** - nguoi dung can tu
+  `pip install -r requirements.txt`, `python -m playwright install
+  chromium`, roi `python -m subtitle_pipeline.infrastructure.cookie_refresh
+  --setup` va thu tai lai video tung bi chan de xac nhan het loi.

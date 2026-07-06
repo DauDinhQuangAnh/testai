@@ -2,14 +2,20 @@
 tai khoan admin chung (env ADMIN_EMAIL/ADMIN_PASSWORD, xem security.py).
 """
 
+import asyncio
+import os
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.db import job_repo, user_repo
 from backend.schemas import AdminUserOut, JobOut
 from backend.security import AuthUser, require_admin
+from subtitle_pipeline.infrastructure.cookie_refresh import (
+    DEFAULT_COOKIES_PATH,
+    refresh_cookies,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -43,3 +49,26 @@ def delete_user(user_id: str, admin: AuthUser = Depends(require_admin)) -> dict:
 @router.get("/jobs", response_model=list[JobOut])
 def list_all_jobs(admin: AuthUser = Depends(require_admin)) -> list[JobOut]:
     return [JobOut.from_job(j) for j in job_repo().list_all()]
+
+
+@router.post("/refresh-cookies")
+async def refresh_cookies_endpoint(admin: AuthUser = Depends(require_admin)) -> dict:
+    """Chay AN (headless) lai profile trinh duyet da dang nhap tu truoc
+    (`python -m subtitle_pipeline.infrastructure.cookie_refresh --setup` -
+    phai chay 1 lan thu cong truoc, script nay khong the tu dang nhap).
+    Chay trong thread rieng (asyncio.to_thread) vi Playwright sync API chan
+    (blocking), tranh treo event loop cua FastAPI.
+    """
+    cookies_path = Path(os.environ.get("YTDLP_COOKIES_FILE", str(DEFAULT_COOKIES_PATH)))
+    try:
+        count = await asyncio.to_thread(refresh_cookies, cookies_path)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Khong lam moi duoc cookie: {exc}. Neu chua tung chay setup, "
+                "hay chay tren may chu (khong qua API): "
+                "python -m subtitle_pipeline.infrastructure.cookie_refresh --setup"
+            ),
+        ) from exc
+    return {"cookie_count": count, "path": str(cookies_path)}

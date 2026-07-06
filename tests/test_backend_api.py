@@ -11,7 +11,7 @@ from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import sessionmaker
 
 import backend.db as backend_db
-from app.db.models import Base
+from app.db.models import Base, JobStatus
 from backend.main import app
 from subtitle_pipeline.infrastructure.downloader_ytdlp import QualityOption, VideoMetadata
 
@@ -217,6 +217,44 @@ def test_admin_lists_users_with_job_count(client):
     assert users[0]["job_count"] == 1
 
 
+def test_refresh_cookies_requires_admin(client):
+    token = _register(client)["token"]
+
+    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(token))
+
+    assert res.status_code == 403
+
+
+def test_refresh_cookies_calls_playwright_helper(client, monkeypatch, tmp_path):
+    admin_token = client.post(
+        "/api/auth/login", json={"email": "admin@test", "password": "admin-secret"}
+    ).json()["token"]
+    cookies_path = tmp_path / "cookies.txt"
+    monkeypatch.setenv("YTDLP_COOKIES_FILE", str(cookies_path))
+    monkeypatch.setattr("backend.routers.admin.refresh_cookies", lambda path: 7)
+
+    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(admin_token))
+
+    assert res.status_code == 200
+    assert res.json() == {"cookie_count": 7, "path": str(cookies_path)}
+
+
+def test_refresh_cookies_reports_error_as_502(client, monkeypatch):
+    admin_token = client.post(
+        "/api/auth/login", json={"email": "admin@test", "password": "admin-secret"}
+    ).json()["token"]
+
+    def _boom(path):
+        raise RuntimeError("chua chay --setup lan nao")
+
+    monkeypatch.setattr("backend.routers.admin.refresh_cookies", _boom)
+
+    res = client.post("/api/admin/refresh-cookies", headers=_auth_headers(admin_token))
+
+    assert res.status_code == 502
+    assert "chua chay --setup" in res.json()["detail"]
+
+
 def test_delete_job_removes_record(client):
     token = _register(client)["token"]
     job = _create_upload_job(client, token)
@@ -267,3 +305,45 @@ def test_job_files_only_classifies_real_dubbed_videos_as_videos(client):
     body = res.json()
     assert [video["name"] for video in body["videos"]] == [f"{stem}.vi.dubbed.mp4"]
     assert body["subtitles"]
+
+
+def test_send_email_rejects_job_not_done(client):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+
+    res = client.post(f"/api/jobs/{job['id']}/send-email", headers=_auth_headers(token))
+
+    assert res.status_code == 400
+
+
+def test_send_email_uses_registered_email(client, monkeypatch):
+    token = _register(client, "a@test.com")["token"]
+    job = _create_upload_job(client, token)
+    backend_db.job_repo().update_status(job["id"], status=JobStatus.DONE)
+
+    sent: list[tuple] = []
+    monkeypatch.setattr(
+        "backend.routers.jobs.send_job_result_email",
+        lambda to_email, job_id, filename: sent.append((to_email, job_id, filename)),
+    )
+
+    res = client.post(f"/api/jobs/{job['id']}/send-email", headers=_auth_headers(token))
+
+    assert res.status_code == 200
+    assert res.json() == {"sent_to": "a@test.com"}
+    assert sent == [("a@test.com", job["id"], "video.mp4")]
+
+
+def test_send_email_reports_smtp_error_as_502(client, monkeypatch):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+    backend_db.job_repo().update_status(job["id"], status=JobStatus.DONE)
+
+    def _boom(to_email, job_id, filename):
+        raise RuntimeError("SMTP loi")
+
+    monkeypatch.setattr("backend.routers.jobs.send_job_result_email", _boom)
+
+    res = client.post(f"/api/jobs/{job['id']}/send-email", headers=_auth_headers(token))
+
+    assert res.status_code == 502

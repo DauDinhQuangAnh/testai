@@ -3,10 +3,18 @@
 The API creates a normal pipeline job from either an uploaded file or a public
 video URL. URL jobs download into the job folder first, then the rest of the
 pipeline reads the downloaded file exactly like an uploaded input.
+
+YouTube thinh thoang chan request an danh voi loi "Sign in to confirm you're
+not a bot" (yeu cau cookie tu 1 phien dang nhap that). Neu bien moi truong
+`YTDLP_COOKIES_FILE` tro toi 1 file cookies.txt ton tai (sinh boi
+`subtitle_pipeline/infrastructure/cookie_refresh.py`, xem nut "Lam moi
+cookie" trong trang Admin), file do duoc truyen vao yt-dlp qua `cookiefile`
+cho CA `analyze_video()` lan `download_video()`.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 from contextlib import suppress
@@ -102,8 +110,29 @@ def check_ffmpeg() -> str | None:
     return None
 
 
+def _cookie_options() -> dict[str, str]:
+    """Doc `YTDLP_COOKIES_FILE` tu env - tra ve `{"cookiefile": ...}` neu file
+    ton tai, nguoc lai `{}` (yt-dlp se chay an danh, co the bi YouTube chan).
+    """
+    cookies_file = os.environ.get("YTDLP_COOKIES_FILE", "").strip()
+    if cookies_file and Path(cookies_file).exists():
+        return {"cookiefile": cookies_file}
+    return {}
+
+
 def friendly_yt_dlp_error(message: str) -> str:
     lower = message.lower()
+    if (
+        "sign in to confirm" in lower
+        or "not a bot" in lower
+        or "fresh cookies" in lower
+        or "cookies are needed" in lower
+    ):
+        return (
+            "YouTube yeu cau xac thuc (nghi ngo bot) nen khong doc/tai duoc video nay. "
+            'Vao trang Admin, bam "Lam moi cookie" (can chay setup dang nhap 1 lan truoc, '
+            "xem huong dan trong .env.example) roi thu lai."
+        )
     if "unsupported url" in lower:
         return "Link nay chua duoc yt-dlp ho tro."
     if "private" in lower:
@@ -133,6 +162,7 @@ def analyze_video(url: str) -> VideoMetadata:
         "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
+        **_cookie_options(),
     }
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -197,6 +227,7 @@ def download_video(url: str, quality: str, output_path: Path) -> Path:
             "windowsfilenames": True,
             "quiet": True,
             "no_warnings": True,
+            **_cookie_options(),
         }
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:

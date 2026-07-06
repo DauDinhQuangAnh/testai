@@ -1,11 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import NavBar from "../components/NavBar";
 import Spinner from "../components/Spinner";
 import StageProgress from "../components/StageProgress";
-import { api, fileUrl } from "../lib/api";
+import { api, ApiError, fileUrl } from "../lib/api";
 import { STATUS_LABELS } from "../lib/constants";
 import type { JobFilesOut, JobOut } from "../lib/types";
 
@@ -29,6 +29,14 @@ export default function JobDetail() {
   const { id = "" } = useParams();
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [emailMessage, setEmailMessage] = useState<string | null>(null);
+
+  const sendEmail = useMutation({
+    mutationFn: () => api.post<{ sent_to: string }>(`/api/jobs/${id}/send-email`, {}),
+    onSuccess: (result) => setEmailMessage(`Đã gửi link tới ${result.sent_to}.`),
+    onError: (err) =>
+      setEmailMessage(err instanceof ApiError ? err.message : "Gửi email thất bại."),
+  });
 
   const { data: job } = useQuery({
     queryKey: ["job", id],
@@ -143,6 +151,15 @@ export default function JobDetail() {
                   <button
                     type="button"
                     className="btn-ghost"
+                    disabled={sendEmail.isPending}
+                    onClick={() => sendEmail.mutate()}
+                  >
+                    {sendEmail.isPending && <Spinner className="h-3 w-3" />}
+                    {sendEmail.isPending ? "Đang gửi..." : "Gửi về email"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost"
                     disabled={isSaving}
                     onClick={() => saveVideoAs(resultVideo.name)}
                   >
@@ -155,6 +172,7 @@ export default function JobDetail() {
                 </div>
               </div>
               {saveMessage && <p className="mt-2 text-sm text-ink-soft">{saveMessage}</p>}
+              {emailMessage && <p className="mt-2 text-sm text-ink-soft">{emailMessage}</p>}
             </div>
           </section>
         )}
