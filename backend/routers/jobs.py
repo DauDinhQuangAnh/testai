@@ -20,9 +20,12 @@ from backend.schemas import (
     JobFilesOut,
     JobOut,
     SubtitleGroupOut,
+    VideoAnalyzeIn,
+    VideoMetadataOut,
     VideoOut,
 )
 from backend.security import AuthUser, get_current_user
+from subtitle_pipeline.infrastructure.downloader_ytdlp import analyze_video, sanitize_filename
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -30,6 +33,7 @@ ALLOWED_EXTENSIONS = {"mp4", "mkv", "mov", "wav", "mp3", "m4a"}
 MAX_FILE_SIZE_MB = 500
 _INTERNAL_SUFFIXES = (".source_language.txt",)
 _VIDEO_SUFFIXES = {".mp4", ".mkv", ".mov", ".webm"}
+_DOWNLOAD_QUALITIES = {"best", "1080p", "720p", "480p"}
 
 
 def _get_owned_job(job_id: str, user: AuthUser) -> Job:
@@ -48,6 +52,8 @@ def _create_job_from_options(
     job_id = str(uuid.uuid4())
     job_dir = AppConfig.from_env().storage_dir / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
+    source = options.get("source") or {}
+    download = source.get("download") or {}
 
     if upload is not None and upload.filename:
         extension = upload.filename.rsplit(".", 1)[-1].lower()
@@ -59,8 +65,24 @@ def _create_job_from_options(
         filename = upload.filename
         input_path = job_dir / filename
         input_path.write_bytes(data)
+        source["input_mode"] = "upload"
+        source.pop("download", None)
+        options["source"] = source
+    elif download.get("url"):
+        quality = download.get("quality", "best")
+        if quality not in _DOWNLOAD_QUALITIES:
+            raise HTTPException(status_code=400, detail="Chất lượng tải video không hợp lệ")
+        filename = f"{sanitize_filename(download.get('title') or 'downloaded-video')}.mp4"
+        input_path = job_dir / filename
+        source["input_mode"] = "download"
+        source["download"] = {
+            "url": download["url"],
+            "quality": quality,
+            "title": download.get("title"),
+        }
+        options["source"] = source
     else:
-        raise HTTPException(status_code=400, detail="Cần file upload")
+        raise HTTPException(status_code=400, detail="Cần file upload hoặc link video")
 
     (job_dir / "job_config.json").write_text(
         json.dumps(options, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -74,6 +96,28 @@ def _create_job_from_options(
     )
     process_video_job.delay(job.id, options)
     return job
+
+
+@router.post("/source/analyze", response_model=VideoMetadataOut)
+def analyze_source(
+    body: VideoAnalyzeIn, user: AuthUser = Depends(get_current_user)
+) -> VideoMetadataOut:
+    try:
+        metadata = analyze_video(body.url)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return VideoMetadataOut(
+        url=metadata.url,
+        title=metadata.title,
+        thumbnail=metadata.thumbnail,
+        duration=metadata.duration,
+        uploader=metadata.uploader,
+        source=metadata.source,
+        qualities=[
+            {"id": quality.id, "label": quality.label, "format": quality.format}
+            for quality in metadata.qualities
+        ],
+    )
 
 
 @router.post("", response_model=JobOut)
@@ -121,12 +165,17 @@ def rerun_job(job_id: str, user: AuthUser = Depends(get_current_user)) -> JobOut
     new_dir = AppConfig.from_env().storage_dir / new_id
     new_dir.mkdir(parents=True, exist_ok=True)
 
-    source_file = Path(job.input_path)
-    if not source_file.exists():
-        raise HTTPException(status_code=400, detail="File gốc không còn trên đĩa")
-    filename = source_file.name
-    input_path = new_dir / filename
-    shutil.copy2(source_file, input_path)
+    source = options.get("source") or {}
+    if source.get("input_mode") == "download" and (source.get("download") or {}).get("url"):
+        filename = Path(job.input_path).name
+        input_path = new_dir / filename
+    else:
+        source_file = Path(job.input_path)
+        if not source_file.exists():
+            raise HTTPException(status_code=400, detail="File gốc không còn trên đĩa")
+        filename = source_file.name
+        input_path = new_dir / filename
+        shutil.copy2(source_file, input_path)
 
     (new_dir / "job_config.json").write_text(
         json.dumps(options, ensure_ascii=False, indent=2), encoding="utf-8"

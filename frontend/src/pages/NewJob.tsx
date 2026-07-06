@@ -11,7 +11,13 @@ import {
   TRANSLATE_PRESETS,
   TRIM_CHOICES,
 } from "../lib/constants";
-import { defaultOptions, type JobOptions, type JobOut, type VoiceInfo } from "../lib/types";
+import {
+  defaultOptions,
+  type JobOptions,
+  type JobOut,
+  type VideoMetadata,
+  type VoiceInfo,
+} from "../lib/types";
 
 const STEPS = [
   { key: "source", title: "Nguồn", desc: "Video và ngôn ngữ" },
@@ -22,12 +28,25 @@ const STEPS = [
   { key: "review", title: "Xem lại", desc: "Cấu hình đã xác nhận" },
 ];
 
+type SourceMode = "upload" | "download";
+
+function formatDuration(seconds?: number | null): string {
+  if (!seconds) return "";
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
 export default function NewJob() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [maxStepReached, setMaxStepReached] = useState(0);
   const [options, setOptions] = useState<JobOptions>(defaultOptions());
   const [file, setFile] = useState<File | null>(null);
+  const [sourceMode, setSourceMode] = useState<SourceMode>("upload");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
+  const [selectedQuality, setSelectedQuality] = useState("best");
   const [presetIndex, setPresetIndex] = useState(0);
   const [sampleUrl, setSampleUrl] = useState<string | null>(null);
   const [draggingSubtitle, setDraggingSubtitle] = useState(false);
@@ -72,19 +91,51 @@ export default function NewJob() {
     },
   });
 
+  const analyzeSource = useMutation({
+    mutationFn: async () => {
+      const submittedUrl = videoUrl.trim();
+      if (!submittedUrl) throw new Error("Hãy dán link YouTube/Douyin trước.");
+      return api.post<VideoMetadata>("/api/jobs/source/analyze", { url: submittedUrl });
+    },
+    onSuccess: (metadata) => {
+      setVideoMetadata(metadata);
+      setVideoUrl(metadata.url);
+      setSelectedQuality(metadata.qualities[0]?.id ?? "best");
+    },
+  });
+
   const createJob = useMutation({
     mutationFn: async () => {
+      const optionsToSubmit: JobOptions = {
+        ...options,
+        source: {
+          ...options.source,
+          input_mode: sourceMode,
+          download:
+            sourceMode === "download"
+              ? {
+                  url: videoMetadata?.url ?? videoUrl.trim(),
+                  quality: selectedQuality,
+                  title: videoMetadata?.title,
+                }
+              : undefined,
+        },
+      };
       const form = new FormData();
-      form.append("options", JSON.stringify(options));
-      if (file) form.append("file", file);
+      form.append("options", JSON.stringify(optionsToSubmit));
+      if (sourceMode === "upload" && file) form.append("file", file);
       return api.postForm<JobOut>("/api/jobs", form);
     },
     onSuccess: (job) => navigate(`/studio/jobs/${job.id}`),
   });
 
-  const sourceValid = Boolean(file);
-  // Chi Buoc 1 (Nguon) co dieu kien bat buoc that su (phai chon file) - cac
-  // buoc sau deu co gia tri mac dinh hop le nen luon cho qua.
+  const sourceValid =
+    sourceMode === "upload" ? Boolean(file) : Boolean(videoMetadata && selectedQuality);
+  const sourceName =
+    sourceMode === "upload"
+      ? (file?.name ?? "(chưa chọn file)")
+      : (videoMetadata?.title ?? "(chưa phân tích link)");
+  // Only the source step has required user input; later steps have valid defaults.
   const canAdvanceFromStep = (index: number) => (index === 0 ? sourceValid : true);
   const selectedVoice =
     voices.find((v) => v.id === options.dubbing.voice) ?? voices[0] ?? null;
@@ -96,6 +147,10 @@ export default function NewJob() {
     if (key === "source") {
       patch({ source: defaults.source });
       setFile(null);
+      setSourceMode("upload");
+      setVideoUrl("");
+      setVideoMetadata(null);
+      setSelectedQuality("best");
       setMaxStepReached(0);
       return;
     }
@@ -120,6 +175,10 @@ export default function NewJob() {
 
     setOptions(defaults);
     setFile(null);
+    setSourceMode("upload");
+    setVideoUrl("");
+    setVideoMetadata(null);
+    setSelectedQuality("best");
     setPresetIndex(0);
     setSampleUrl(null);
     setMaxStepReached(0);
@@ -202,20 +261,132 @@ export default function NewJob() {
               {step === 0 && (
                 <div className="space-y-5">
                   <h2 className="text-lg font-semibold">Chọn nguồn video</h2>
-                  <div>
-                    <label className="label">File video/audio (tối đa 500MB)</label>
-                    <input
-                      type="file"
-                      accept=".mp4,.mkv,.mov,.wav,.mp3,.m4a"
-                      className="input"
-                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                    />
-                    {file && (
-                      <p className="mt-2 text-sm text-ink-soft">
-                        {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
-                      </p>
-                    )}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(["upload", "download"] as SourceMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className={
+                          "rounded-lg border px-4 py-3 text-left transition " +
+                          (sourceMode === mode
+                            ? "border-primary bg-primary-soft"
+                            : "border-line bg-white hover:border-primary/40")
+                        }
+                        onClick={() => {
+                          if (sourceMode === mode) return;
+                          setSourceMode(mode);
+                          setMaxStepReached(0);
+                        }}
+                      >
+                        <span className="font-semibold">
+                          {mode === "upload" ? "Insert video" : "Tải từ link"}
+                        </span>
+                        <p className="mt-1 text-xs text-ink-soft">
+                          {mode === "upload"
+                            ? "Chọn file có sẵn trên máy."
+                            : "YouTube, Douyin hoặc link yt-dlp hỗ trợ."}
+                        </p>
+                      </button>
+                    ))}
                   </div>
+
+                  {sourceMode === "upload" && (
+                    <div>
+                      <label className="label">File video/audio (tối đa 500MB)</label>
+                      <input
+                        type="file"
+                        accept=".mp4,.mkv,.mov,.wav,.mp3,.m4a"
+                        className="input"
+                        onChange={(e) => {
+                          setFile(e.target.files?.[0] ?? null);
+                          setMaxStepReached(0);
+                        }}
+                      />
+                      {file && (
+                        <p className="mt-2 text-sm text-ink-soft">
+                          {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {sourceMode === "download" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="label">Link video</label>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <input
+                            type="url"
+                            className="input"
+                            value={videoUrl}
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            onChange={(e) => {
+                              setVideoUrl(e.target.value);
+                              setVideoMetadata(null);
+                              setMaxStepReached(0);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn-ghost justify-center sm:w-36"
+                            disabled={analyzeSource.isPending}
+                            onClick={() => analyzeSource.mutate()}
+                          >
+                            {analyzeSource.isPending ? "Đang đọc..." : "Phân tích"}
+                          </button>
+                        </div>
+                        <p className="mt-1 text-xs text-ink-soft">
+                          Video tải về chỉ lưu tạm trong thư mục job, xử lý xong sẽ tự xóa nguồn.
+                        </p>
+                      </div>
+
+                      {analyzeSource.isError && (
+                        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+                          {analyzeSource.error instanceof Error
+                            ? analyzeSource.error.message
+                            : "Không phân tích được link video"}
+                        </p>
+                      )}
+
+                      {videoMetadata && (
+                        <div className="grid gap-4 rounded-lg border border-line bg-cream p-4 sm:grid-cols-[160px_1fr]">
+                          {videoMetadata.thumbnail ? (
+                            <img
+                              src={videoMetadata.thumbnail}
+                              alt=""
+                              className="aspect-video w-full rounded-md object-cover"
+                            />
+                          ) : (
+                            <div className="aspect-video rounded-md bg-cream-dark" />
+                          )}
+                          <div className="min-w-0 space-y-3">
+                            <div>
+                              <p className="break-words font-semibold">{videoMetadata.title}</p>
+                              <p className="text-xs text-ink-soft">
+                                {[videoMetadata.uploader, videoMetadata.source, formatDuration(videoMetadata.duration)]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="label">Chất lượng tải</label>
+                              <select
+                                className="input"
+                                value={selectedQuality}
+                                onChange={(e) => setSelectedQuality(e.target.value)}
+                              >
+                                {videoMetadata.qualities.map((q) => (
+                                  <option key={q.id} value={q.id}>
+                                    {q.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -753,9 +924,13 @@ export default function NewJob() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <ReviewCard title="NGUỒN">
                       <p className="break-all font-medium">
-                        {file?.name ?? "(chưa chọn file)"}
+                        {sourceName}
                       </p>
                       <p className="text-xs text-ink-soft">
+                        {sourceMode === "download"
+                          ? `Tải từ link · ${selectedQuality}`
+                          : "Insert video"}{" "}
+                        ·{" "}
                         {options.source.source_language
                           ? languageName(options.source.source_language)
                           : "Tự phát hiện"}{" "}
@@ -823,7 +998,7 @@ export default function NewJob() {
 
                   {!sourceValid && (
                     <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Chưa có nguồn hợp lệ — quay lại bước 1 để chọn file.
+                      Chưa có nguồn hợp lệ — quay lại bước 1 để chọn file hoặc phân tích link.
                     </p>
                   )}
                   {createJob.isError && (
@@ -838,7 +1013,11 @@ export default function NewJob() {
                     disabled={!sourceValid || createJob.isPending}
                     onClick={() => createJob.mutate()}
                   >
-                    {createJob.isPending ? "Đang tạo và tải lên..." : "🚀 Tạo và khởi chạy"}
+                    {createJob.isPending
+                      ? sourceMode === "download"
+                        ? "Đang tạo job tải video..."
+                        : "Đang tạo và tải lên..."
+                      : "🚀 Tạo và khởi chạy"}
                   </button>
                 </div>
               )}

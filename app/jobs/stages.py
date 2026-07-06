@@ -7,6 +7,7 @@ React (frontend/) hien lai qua StageProgress.tsx.
 # cac giai doan translate/dub cua process_video_job. Tien do = vi tri/len.
 PIPELINE_STAGES: list[tuple[str, str]] = [
     ("starting", "Khởi động"),
+    ("download", "Tải video"),
     ("extract_audio", "Tách audio"),
     ("denoise", "Khử ồn"),
     ("transcribe", "Nhận diện lời nói"),

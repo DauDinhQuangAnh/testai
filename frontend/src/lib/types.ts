@@ -57,6 +57,22 @@ export interface VoiceInfo {
   recommended: boolean;
 }
 
+export interface QualityOption {
+  id: string;
+  label: string;
+  format: string;
+}
+
+export interface VideoMetadata {
+  url: string;
+  title: string;
+  thumbnail?: string | null;
+  duration?: number | null;
+  uploader?: string | null;
+  source?: string | null;
+  qualities: QualityOption[];
+}
+
 export interface AdminUserOut {
   id: string;
   email: string;
@@ -70,6 +86,12 @@ export interface JobOptions {
   source: {
     trim_seconds: number | null;
     source_language: string | null;
+    input_mode?: "upload" | "download";
+    download?: {
+      url: string;
+      quality: string;
+      title?: string | null;
+    };
   };
   dubbing: {
     enabled: boolean;

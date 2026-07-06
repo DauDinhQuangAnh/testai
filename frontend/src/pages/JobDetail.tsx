@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import NavBar from "../components/NavBar";
@@ -7,8 +8,26 @@ import { api, fileUrl } from "../lib/api";
 import { STATUS_LABELS } from "../lib/constants";
 import type { JobFilesOut, JobOut } from "../lib/types";
 
+type SaveFileHandle = {
+  createWritable: () => Promise<{
+    write: (data: Blob) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
+};
+
+declare global {
+  interface Window {
+    showSaveFilePicker?: (options?: {
+      suggestedName?: string;
+      types?: Array<{ description: string; accept: Record<string, string[]> }>;
+    }) => Promise<SaveFileHandle>;
+  }
+}
+
 export default function JobDetail() {
   const { id = "" } = useParams();
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const { data: job } = useQuery({
     queryKey: ["job", id],
@@ -38,6 +57,38 @@ export default function JobDetail() {
     files?.videos.length
       ? [...files.videos].sort((a, b) => b.size_bytes - a.size_bytes)[0]
       : null;
+
+  async function saveVideoAs(name: string) {
+    if (!window.showSaveFilePicker) {
+      setSaveMessage("Trình duyệt này chưa hỗ trợ chọn nơi lưu. Hãy dùng nút Tải video.");
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [
+          {
+            description: "Video",
+            accept: { "video/mp4": [".mp4"], "video/x-matroska": [".mkv"] },
+          },
+        ],
+      });
+      const response = await fetch(fileUrl(id, name));
+      if (!response.ok) throw new Error("Không tải được file kết quả.");
+      const writable = await handle.createWritable();
+      await writable.write(await response.blob());
+      await writable.close();
+      setSaveMessage("Đã lưu video vào vị trí bạn chọn.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setSaveMessage(err instanceof Error ? err.message : "Không lưu được video.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   return (
     <div className="min-h-screen">
@@ -85,10 +136,21 @@ export default function JobDetail() {
                 <p className="truncate text-sm text-ink-soft" title={resultVideo.name}>
                   {resultVideo.name}
                 </p>
-                <a href={fileUrl(id, resultVideo.name)} download className="btn-primary shrink-0">
-                  Tải video ({(resultVideo.size_bytes / 1024 / 1024).toFixed(1)} MB)
-                </a>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    disabled={isSaving}
+                    onClick={() => saveVideoAs(resultVideo.name)}
+                  >
+                    {isSaving ? "Đang lưu..." : "Chọn nơi lưu"}
+                  </button>
+                  <a href={fileUrl(id, resultVideo.name)} download className="btn-primary">
+                    Tải video ({(resultVideo.size_bytes / 1024 / 1024).toFixed(1)} MB)
+                  </a>
+                </div>
               </div>
+              {saveMessage && <p className="mt-2 text-sm text-ink-soft">{saveMessage}</p>}
             </div>
           </section>
         )}
