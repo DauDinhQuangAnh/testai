@@ -360,25 +360,29 @@ Xem "Quyet dinh moi" de biet chi tiet.
 nhieu so voi "production-ready" that su (xem "Van de dang mo").
 
 **Da lam:**
-- `app/storage.py` - abstraction `Storage` (Protocol) + `LocalStorage` (dung
-  hien tai) + `S3Storage` (boto3, lazy-import). **CHUA duoc noi vao
-  Upload/Editor/Celery task** (cac cho do van dung `Path` filesystem truc tiep
-  - hanh vi tuong duong `LocalStorage` nhung khong di qua abstraction nay). Co
-  test cho `LocalStorage` (`tests/test_storage.py`); `S3Storage` khong test
-  duoc (can AWS credential that).
 - `.github/workflows/ci.yml` - chay `ruff check` + `ruff format --check` +
   `pytest` tren moi push/PR len `main`.
 - Hardening Upload: gioi han kich thuoc file (500MB) + kiem tra dinh dang phia
-  server (khong chi dua vao `type=[...]` cua `st.file_uploader`).
+  server trong `backend/routers/jobs.py` (khong chi dua vao content-type nguoi
+  dung gui len).
 
 **CHUA lam (ghi nhan de lam sau, khong xay truoc khi can - tranh du thua):**
 - Secrets management that (Vault, AWS Secrets Manager...) - hien dang dung
   `.env`/bien moi truong, du cho dev/MVP nhung khong phai chuan production.
-- Deploy multi-instance Streamlit + reverse proxy (sticky session).
-- Wiring `app/storage.py` vao cac luong hien co de dung S3 that.
+- Deploy multi-instance backend FastAPI + reverse proxy.
 
-**Viec can lam:** Xem CI chay pass tren GitHub sau khi push. Test
-`LocalStorage`/`get_storage()` qua `pytest`.
+**Viec can lam:** Xem CI chay pass tren GitHub sau khi push.
+
+**Cap nhat 2026-07-13 - XOA S3 storage abstraction:** theo yeu cau nguoi dung
+("s3 storage đi ko cần đâu clean phần đó luôn") - du an la tool ca nhan chay
+local, khong can S3/MinIO. Da xoa `app/storage.py` (`Storage`
+Protocol/`LocalStorage`/`S3Storage`) + `tests/test_storage.py`, bo dependency
+`boto3` khoi `requirements.txt`, bo `STORAGE_BACKEND`/`S3_BUCKET`/`S3_PREFIX`
+khoi `.env`/`.env.example`. Module nay tu truoc gio KHONG duoc noi vao
+Upload/Editor/Celery task nao (toan bo van dung `Path` filesystem truc tiep),
+nen xoa khong anh huong hanh vi hien co - chi bot dead code. 113/113 pytest
+pass (giam 3 test so voi truoc, dung bang so test cua `test_storage.py` da
+xoa), ruff sach.
 
 ## 6i. Phase 5b - Long tieng (Dubbing / Text-to-Speech)
 
@@ -1181,7 +1185,15 @@ dong dau (`if not chat_id: return`).
   moi so lieu VRAM/thoi gian trong muc 6 con trong. Ten file va cach goi adapter
   vua doi (xem "Quyet dinh moi") - can chay lai tu dau: `check_env.py` roi
   `run_all.py` de xac nhan cac script step0X hoat dong dung sau refactor, truoc
-  khi tin tuong so lieu.
+  khi tin tuong so lieu. **Cap nhat 2026-07-13:** `check_env.py` da chay THAT
+  tren may dev (khong phai sandbox) va PASS toan bo (ffmpeg, torch 2.8.0+cu128
+  CUDA=True tren RTX 4050, faster_whisper/whisperx/pyannote.audio/df/
+  transformers/edge_tts/soundfile da cai, HF_TOKEN da set) - moi truong da san
+  sang, nhung `run_all.py` VAN CHUA chay (khong co file mau nao trong
+  `phase1_feasibility/samples/`, thu muc `results/` chua ton tai) nen bang so
+  lieu VRAM/thoi gian van con trong. Can bo 1 file video/audio mau vao
+  `phase1_feasibility/samples/` roi chay `run_all.py` +
+  `summarize_results.py`.
 - **Phase 2: logic dieu phoi da duoc `pytest` xac nhan (2026-07-03, xem muc
   9), nhung CHUA chay voi model AI that/GPU that** - dac biet: giai phong VRAM
   giua cac buoc trong CUNG 1 process (`subtitle_pipeline/infrastructure/gpu.py`)
@@ -1210,8 +1222,9 @@ dong dau (`if not chat_id: return`).
     duoc chay thu, kha nang cao se can sua lai tham so hoac cach lay ma ngon
     ngu khi test that (xem docstring trong `translator_nllb.py`). Model
     `nllb-200-distilled-600M` (~2.4GB) can tai ve lan dau, cong them VRAM/RAM.
-  - **Phase 8:** `app/storage.py` (S3Storage) hoan toan chua test (can AWS
-    that); CHUA duoc noi vao luong Upload/Editor/Celery task hien co.
+  - ~~Phase 8: `app/storage.py` (S3Storage) hoan toan chua test...~~ - **DA XOA
+    (2026-07-13)** theo yeu cau nguoi dung, khong con la van de mo (xem muc 6h
+    "Cap nhat 2026-07-13").
 - **DB schema vua thay doi (2026-07-03, bo Auth/Billing) - CAN RESET DB truoc
   khi chay lai:** bang `jobs` cu (neu da tung chay `docker compose up` va tao
   job that) co the con cot `user_id NOT NULL` va bang `users`/`subscriptions`
@@ -1905,3 +1918,52 @@ dong dau (`if not chat_id: return`).
   nhan viec doi `ADMIN_EMAIL`/`ADMIN_PASSWORD` mau trong `.env.example`
   thanh `admin`/`admin` la CO Y (khong phai sot lai), giu nguyen. 116/116
   pytest pass, ruff sach sau khi sua.
+- 2026-07-13: **Ra soat toan du an theo yeu cau nguoi dung ("kiem tra da hoan
+  thien phan nao va thieu sot phan nao")** - phien nay chay THAT tren may dev
+  (RTX 4050, khong phai sandbox - xac nhan qua `nvidia-smi`), khong chi doc
+  HANDOFF ma con chay lai kiem tra thuc te:
+  - `pytest` 116/116 pass, `ruff check .` + `ruff format --check .` sach,
+    `cd frontend && npm run build` pass - tat ca chay THAT, khong chi doc code.
+  - `check_env.py` PASS toan bo lan dau tien (xem chi tiet muc 8) - moi truong
+    AI (torch/CUDA/faster_whisper/whisperx/pyannote/deepfilternet/
+    transformers/edge_tts) da san sang tren may nay.
+  - Xac nhan qua git log: khong co commit nao sau `7ac8d43` (2026-07-07,
+    Telegram bot) - HANDOFF dang khop 100% voi lich su git, khong bi lech.
+  - Phat hien cac khoang trong CHUA tung duoc chay end-to-end that:
+    `phase1_feasibility/samples/` rong (chua co video mau), thu muc `results/`
+    chua ton tai (`run_all.py` chua chay lan nao), `storage/` chi co
+    `browser_profile/` (khong co job nao tung chay xong qua web pipeline).
+    Docker Desktop dang KHONG chay (`docker ps` loi "cannot connect to
+    dockerDesktopLinuxEngine") nen Postgres/Redis chua san sang de test
+    Phase 3 tro len ngay luc ra soat.
+  - Doi chieu `.env` thuc te voi `.env.example`: da dien `HF_TOKEN`,
+    `DATABASE_URL` (port 15432 dung), `ADMIN_EMAIL`/`ADMIN_PASSWORD`,
+    `YTDLP_COOKIES_FILE`. **CON THIEU hoan toan** (rong, chua co dong nao
+    trong `.env`): `SMTP_*`/`FRONTEND_URL` (tinh nang gui email job xong -
+    code xong tu 2026-07-05 nhung chua the dung vi chua cau hinh SMTP),
+    `TELEGRAM_*`/`BACKEND_PUBLIC_URL`/`PUBLIC_LINK_*` (bot Telegram - code
+    xong + ra soat 2026-07-07 nhung chua chay voi token that vi chua dien).
+  Khong sua code gi trong phien nay (chi ra soat + cap nhat tai lieu). Xem
+  cau tra loi day du gui nguoi dung de biet danh sach hoan thien/thieu sot
+  chi tiet theo tung phase.
+- 2026-07-13 (lan 2): **Don dep 2 khoang du thua theo yeu cau nguoi dung**
+  ("streamlit là phần cũ cần phải được clean bỏ, s3 storage đi ko cần đâu
+  clean phần đó luôn"):
+  - Xac nhan Streamlit CODE da duoc xoa sach tu 2026-07-04 (khong con file
+    `app/pages/`, `app/Home.py`, `app/ui.py`, `.streamlit/` nao) - chi con sot
+    2 dong DEAD trong `start_project.ps1`/`stop_project.ps1`
+    (pattern `"streamlit run app/Home.py"` trong `Stop-DevProcesses`, dung de
+    tim tien trinh Streamlit cu con chay de kill - khong con tac dung vi
+    script do khong con ton tai). Da xoa 2 dong nay.
+  - Xoa hoan toan S3 storage abstraction (xem chi tiet muc 6h "Cap nhat
+    2026-07-13"): `app/storage.py`, `tests/test_storage.py`, dependency
+    `boto3`, bien env `STORAGE_BACKEND`/`S3_BUCKET`/`S3_PREFIX` (ca `.env` va
+    `.env.example`). Xac nhan module nay chua tung duoc goi o dau khac ngoai
+    test cua chinh no truoc khi xoa (grep toan repo).
+  113/113 pytest pass (116 - 3 test cua `test_storage.py` da xoa), `ruff
+  check`/`ruff format --check` sach.
+- 2026-07-13 (lan 3): **Viet lai `README.md`** theo yeu cau nguoi dung ("trang
+  tri readme dep vao") - them badge CI/Python/React, so do pipeline dang
+  Mermaid, bang cong nghe su dung, danh sach tinh nang co emoji, giu nguyen
+  noi dung ky thuat (khong bia them tinh nang chua co). Khong dong code, chi
+  doi 1 file markdown.

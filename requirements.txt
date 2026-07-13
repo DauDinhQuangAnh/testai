@@ -45,6 +45,3 @@ yt-dlp>=2025.1.26
 # subtitle_pipeline/infrastructure/cookie_refresh.py. Sau khi cai can chay
 # THEM 1 lan: `python -m playwright install chromium`.
 playwright>=1.47.0
-
-# Phase 8 - Production storage (S3/MinIO)
-boto3>=1.34.0
