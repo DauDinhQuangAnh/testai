@@ -21,6 +21,9 @@ export default function NavBar() {
               <Link to="/studio" className="btn-ghost">
                 Studio
               </Link>
+              <Link to="/voices" className="btn-ghost">
+                Giọng của tôi
+              </Link>
               {isAdmin && (
                 <Link to="/admin" className="btn-ghost">
                   Quản trị

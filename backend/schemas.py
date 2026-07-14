@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
-from app.db.models import Job
+from app.db.models import CustomVoice, Job
 from app.jobs.stages import stage_progress
 
 
@@ -104,6 +104,38 @@ class VideoOut(BaseModel):
 class JobFilesOut(BaseModel):
     videos: list[VideoOut]
     subtitles: list[SubtitleGroupOut]
+
+
+class SubtitleSegmentOut(BaseModel):
+    start: float
+    end: float
+    text: str
+    speaker: str | None = None
+
+
+class UpdateSubtitlesIn(BaseModel):
+    segments: list[SubtitleSegmentOut]
+
+
+class TranslateJobIn(BaseModel):
+    target_language: str
+
+
+class DubJobIn(BaseModel):
+    target_language: str
+    voice: str | None = None
+    keep_original_audio: bool = False
+    custom_voice_id: str | None = None
+
+
+class CustomVoiceOut(BaseModel):
+    id: str
+    name: str
+    created_at: datetime
+
+    @classmethod
+    def from_voice(cls, voice: CustomVoice) -> "CustomVoiceOut":
+        return cls(id=voice.id, name=voice.name, created_at=voice.created_at)
 
 
 class VoiceSampleIn(BaseModel):

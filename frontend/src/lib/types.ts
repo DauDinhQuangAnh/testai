@@ -49,6 +49,13 @@ export interface JobFilesOut {
   subtitles: SubtitleGroupOut[];
 }
 
+export interface SubtitleSegment {
+  start: number;
+  end: number;
+  text: string;
+  speaker: string | null;
+}
+
 export interface VoiceInfo {
   label: string;
   id: string;
@@ -71,6 +78,12 @@ export interface VideoMetadata {
   uploader?: string | null;
   source?: string | null;
   qualities: QualityOption[];
+}
+
+export interface CustomVoiceOut {
+  id: string;
+  name: string;
+  created_at: string;
 }
 
 export interface AdminUserOut {
@@ -99,6 +112,9 @@ export interface JobOptions {
     voice: string | null;
     rate_percent: number;
     pitch_hz: number;
+    // Neu co, dung giong DA CLONE nay (VieNeu-TTS) cho ca video thay vi
+    // "voice" (giong co san edge-tts) - xem trang "Giọng của tôi".
+    custom_voice_id: string | null;
   };
   translation: {
     glossary: string;
@@ -139,6 +155,7 @@ export function defaultOptions(): JobOptions {
       voice: null,
       rate_percent: 0,
       pitch_hz: 0,
+      custom_voice_id: null,
     },
     translation: { glossary: "", pronunciation: "", max_chars_per_line: 42, max_lines: 2 },
     subtitle: {

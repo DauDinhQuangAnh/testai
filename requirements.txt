@@ -1,6 +1,9 @@
 # Cai torch/torchaudio ban CUDA RIENG truoc (khong nam trong file nay vi can --index-url
 # phu hop voi driver CUDA dang co tren may). Xem HANDOFF.md muc 5, buoc 5.
 # Vi du: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+# LUU Y: `torchaudio` gio la BAT BUOC (khong chi torch) - vieneu (Phase 5c,
+# xem duoi) dung torchaudio.compliance.kaldi de trich speaker embedding du
+# backbone chinh chay ONNX "torch-free" tren CPU.
 
 faster-whisper>=1.0.3
 whisperx>=3.3.0
@@ -29,6 +32,13 @@ sentencepiece>=0.2.0
 # subtitle_pipeline/infrastructure/tts_edge.py)
 soundfile>=0.12.1
 edge-tts>=6.1.9
+
+# Phase 5c - Clone giong long tieng (VieNeu-TTS, xem canh bao/spike da chay
+# that trong subtitle_pipeline/infrastructure/tts_vieneu.py). Keo theo
+# gradio+pandas (demo UI cua chinh package vieneu, du an nay KHONG dung -
+# chi import class TTS, khong dung gradio) - chap nhan duoc de doi lay
+# adapter don gian, khong tu viet lai wrapper HuggingFace.
+vieneu>=3.2.3
 
 # Backend FastAPI cho UI React (backend/ + frontend/, quyet dinh 2026-07-03
 # chuyen khoi Streamlit - xem HANDOFF.md)

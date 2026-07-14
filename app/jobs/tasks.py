@@ -17,6 +17,7 @@ from app.db.models import Job, JobStatus
 from app.jobs.celery_app import celery_app
 from app.jobs.repository import JobRepository
 from app.telegram_bot.notifier import notify_telegram_job_done, notify_telegram_job_failed
+from app.voices.repository import CustomVoiceRepository
 from subtitle_pipeline.application.dub import DubRenderOptions, dub_and_export
 from subtitle_pipeline.application.pipeline import TranscriptionPipeline
 from subtitle_pipeline.application.pronunciation import resolve_pronunciation_glossary
@@ -27,6 +28,16 @@ from subtitle_pipeline.export.formats import FORMAT_WRITERS, SubtitleStyle
 from subtitle_pipeline.infrastructure.audio import trim_media
 from subtitle_pipeline.infrastructure.downloader_ytdlp import download_video
 from subtitle_pipeline.infrastructure.transcriber_faster_whisper import FasterWhisperTranscriber
+
+
+def _resolve_custom_voice_ref_audio(custom_voice_id: str | None) -> Path | None:
+    """Doc `ref_audio_path` cua 1 giong da clone tu DB - dung boi ca
+    `process_video_job` (wizard) lan `dub_job` (Editor). Tra None neu khong
+    co id hoac giong da bi xoa (roi ve edge-tts thay vi lam fail job)."""
+    if not custom_voice_id:
+        return None
+    voice = CustomVoiceRepository().get(custom_voice_id)
+    return Path(voice.ref_audio_path) if voice else None
 
 
 def _build_dub_options(options: dict) -> DubRenderOptions:
@@ -50,6 +61,7 @@ def _build_dub_options(options: dict) -> DubRenderOptions:
         pronunciation=resolve_pronunciation_glossary(
             target_language, translation.get("pronunciation", "")
         ),
+        custom_voice_ref_audio=_resolve_custom_voice_ref_audio(dubbing.get("custom_voice_id")),
     )
 
 
@@ -248,6 +260,7 @@ def dub_job(
     target_language: str,
     voice: str | None = None,
     keep_original_audio: bool = False,
+    custom_voice_id: str | None = None,
 ) -> None:
     repo = JobRepository()
     job = repo.get(job_id)
@@ -270,12 +283,13 @@ def dub_job(
         work_dir=work_dir,
         out_dir=out_dir,
         stem=stem,
-        # Editor chi co 2 lua chon don gian (giong + giu/xoa tieng goc) -
-        # muon tinh chinh sau (ducking, hardsub, toc do...) thi tao job moi
-        # tu wizard Upload voi day du buoc.
+        # Editor chi co vai lua chon don gian (giong co san hoac giong da
+        # clone + giu/xoa tieng goc) - muon tinh chinh sau (ducking, hardsub,
+        # toc do...) thi tao job moi tu wizard Upload voi day du buoc.
         options=DubRenderOptions(
             voice=voice,
             original_volume=0.3 if keep_original_audio else 0.0,
             pronunciation=resolve_pronunciation_glossary(target_language),
+            custom_voice_ref_audio=_resolve_custom_voice_ref_audio(custom_voice_id),
         ),
     )

@@ -13,19 +13,26 @@ from fastapi.responses import FileResponse
 
 from app.config import AppConfig
 from app.db.models import Job, JobStatus
-from app.jobs.tasks import process_video_job
+from app.jobs.tasks import dub_job, process_video_job, translate_job
 from backend.db import job_repo
 from backend.email_sender import EmailNotConfiguredError, send_job_result_email
+from backend.routers.voices import get_owned_voice
 from backend.schemas import (
+    DubJobIn,
     FileOut,
     JobFilesOut,
     JobOut,
     SubtitleGroupOut,
+    SubtitleSegmentOut,
+    TranslateJobIn,
+    UpdateSubtitlesIn,
     VideoAnalyzeIn,
     VideoMetadataOut,
     VideoOut,
 )
 from backend.security import AuthUser, get_current_user
+from subtitle_pipeline.domain.models import SubtitleSegment
+from subtitle_pipeline.export.formats import FORMAT_WRITERS
 from subtitle_pipeline.infrastructure.downloader_ytdlp import analyze_video, sanitize_filename
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -90,6 +97,10 @@ def _create_job_from_options(
         options["source"] = source
     else:
         raise HTTPException(status_code=400, detail="Cần file upload hoặc link video")
+
+    custom_voice_id = (options.get("dubbing") or {}).get("custom_voice_id")
+    if custom_voice_id:
+        get_owned_voice(custom_voice_id, user)
 
     _write_job_config(job_dir, options)
     job = job_repo().create(
@@ -206,6 +217,78 @@ def rerun_job(job_id: str, user: AuthUser = Depends(get_current_user)) -> JobOut
     )
     process_video_job.delay(new_job.id, options)
     return JobOut.from_job(new_job)
+
+
+def _subtitle_json_path(job: Job, language: str) -> Path:
+    suffix = "" if language == "goc" else f".{language}"
+    return Path(job.output_dir) / f"{Path(job.input_path).stem}{suffix}.json"
+
+
+@router.get("/{job_id}/subtitles/{language}", response_model=list[SubtitleSegmentOut])
+def get_subtitles(
+    job_id: str, language: str, user: AuthUser = Depends(get_current_user)
+) -> list[SubtitleSegmentOut]:
+    job = _get_owned_job(job_id, user)
+    path = _subtitle_json_path(job, language)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy phụ đề cho ngôn ngữ này")
+    return [SubtitleSegmentOut(**seg) for seg in json.loads(path.read_text(encoding="utf-8"))]
+
+
+@router.put("/{job_id}/subtitles/{language}")
+def update_subtitles(
+    job_id: str, language: str, body: UpdateSubtitlesIn, user: AuthUser = Depends(get_current_user)
+) -> dict:
+    job = _get_owned_job(job_id, user)
+    path = _subtitle_json_path(job, language)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy phụ đề cho ngôn ngữ này")
+    segments = [
+        SubtitleSegment(start=s.start, end=s.end, text=s.text, speaker=s.speaker)
+        for s in body.segments
+    ]
+    suffix = "" if language == "goc" else f".{language}"
+    stem = f"{Path(job.input_path).stem}{suffix}"
+    out_dir = Path(job.output_dir)
+    for fmt, writer in FORMAT_WRITERS.items():
+        (out_dir / f"{stem}.{fmt}").write_text(writer(segments), encoding="utf-8")
+    return {"saved": len(segments)}
+
+
+@router.post("/{job_id}/translate")
+def translate_job_endpoint(
+    job_id: str, body: TranslateJobIn, user: AuthUser = Depends(get_current_user)
+) -> dict:
+    job = _get_owned_job(job_id, user)
+    if job.status != JobStatus.DONE:
+        raise HTTPException(status_code=400, detail="Job chưa xử lý xong")
+    translate_job.delay(job.id, body.target_language)
+    return {"queued": True}
+
+
+@router.post("/{job_id}/dub")
+def dub_job_endpoint(
+    job_id: str, body: DubJobIn, user: AuthUser = Depends(get_current_user)
+) -> dict:
+    job = _get_owned_job(job_id, user)
+    if job.status != JobStatus.DONE:
+        raise HTTPException(status_code=400, detail="Job chưa xử lý xong")
+    if body.custom_voice_id:
+        get_owned_voice(body.custom_voice_id, user)
+    dub_job.delay(
+        job.id, body.target_language, body.voice, body.keep_original_audio, body.custom_voice_id
+    )
+    return {"queued": True}
+
+
+@router.get("/{job_id}/original")
+def download_original(job_id: str, user: AuthUser = Depends(get_current_user)) -> FileResponse:
+    job = _get_owned_job(job_id, user)
+    input_path = Path(job.input_path)
+    if not input_path.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy file gốc")
+    media_type = "video/mp4" if input_path.suffix.lower() in (".mp4", ".mkv", ".mov") else None
+    return FileResponse(input_path, media_type=media_type, filename=input_path.name)
 
 
 def _group_output_files(job: Job) -> JobFilesOut:

@@ -1,9 +1,12 @@
-"""Dieu phoi long tieng (dubbing): synthesize giong doc co san (khong clone
-giong goc - xem HANDOFF.md Phase 5b) cho tung segment DA DICH, dat clip raw
-vao dung timeline, roi mux (ghep) vao video goc thay the audio cu. Neu video
-co nhieu nguoi noi (`SubtitleSegment.speaker` tu diarization), TU DONG gan
-moi nguoi noi 1 giong khac nhau (xem `_build_speaker_voice_map`) thay vi ca
-video dung chung 1 giong. Buoc nay chay SAU buoc dich
+"""Dieu phoi long tieng (dubbing): synthesize giong doc cho tung segment DA
+DICH, dat clip raw vao dung timeline, roi mux (ghep) vao video goc thay the
+audio cu. Mac dinh dung giong co san (edge-tts, khong clone) - neu video co
+nhieu nguoi noi (`SubtitleSegment.speaker` tu diarization), TU DONG gan moi
+nguoi noi 1 giong khac nhau (xem `_build_speaker_voice_map`) thay vi ca video
+dung chung 1 giong. Neu `DubRenderOptions.custom_voice_ref_audio` duoc dat
+(giong nguoi dung tu clone o trang "Giong cua toi" - xem HANDOFF.md muc 6p),
+dung 1 giong CLONE DUY NHAT (VieNeu-TTS, tts_vieneu.py) cho TOAN BO video
+thay the hoan toan co che nhieu-giong o tren. Buoc nay chay SAU buoc dich
 (application/translate.py), tach rieng vi la hanh dong tuy chon nguoi dung
 kich hoat tu Editor (xem app/jobs/tasks.py: dub_job).
 
@@ -34,6 +37,7 @@ from subtitle_pipeline.infrastructure.tts_edge import (
     EdgeTTSSynthesizer,
     default_voice,
 )
+from subtitle_pipeline.infrastructure.tts_vieneu import VieNeuCloneSynthesizer
 
 MAX_SYNTHESIZE_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 2.0
@@ -61,6 +65,11 @@ class DubRenderOptions:
     # audio, khong doi phu de xuat ra. Da gop san mac dinh JSON + override
     # rieng cua job (xem application/pronunciation.py, app/jobs/tasks.py).
     pronunciation: dict[str, str] = field(default_factory=dict)
+    # Neu co, dung VieNeu-TTS (tts_vieneu.py) CLONE giong tu file audio nay
+    # cho TOAN BO video thay vi edge-tts (bo qua voice/rate_percent/pitch_hz
+    # va co che nhieu-giong-theo-nguoi-noi o tren - clone hien chi ho tro 1
+    # giong duy nhat/video, xem HANDOFF.md muc 6p).
+    custom_voice_ref_audio: Path | None = None
 
 
 def _total_duration(work_dir: Path, source_video: Path) -> float:
@@ -142,11 +151,21 @@ def dub_and_export(
     segment_dir = work_dir / f"dub_{target_language}_segments"
     segment_dir.mkdir(parents=True, exist_ok=True)
 
-    voice_by_speaker = _build_speaker_voice_map(segments, target_language, options.voice)
+    use_cloned_voice = options.custom_voice_ref_audio is not None
+    voice_by_speaker = (
+        {}
+        if use_cloned_voice
+        else _build_speaker_voice_map(segments, target_language, options.voice)
+    )
 
     raw_clips: list[tuple[float, Path]] = []
     with ExitStack() as stack:
         synthesizers: dict[str, EdgeTTSSynthesizer] = {}
+        cloned_tts = (
+            stack.enter_context(VieNeuCloneSynthesizer(options.custom_voice_ref_audio))
+            if use_cloned_voice
+            else None
+        )
         for i, seg in enumerate(segments):
             text = _clean_text_for_speech(seg.text)
             if options.pronunciation:
@@ -154,17 +173,20 @@ def dub_and_export(
             if not text:
                 continue
 
-            seg_voice = voice_by_speaker[seg.speaker]
-            if seg_voice not in synthesizers:
-                synthesizers[seg_voice] = stack.enter_context(
-                    EdgeTTSSynthesizer(
-                        target_language,
-                        voice=seg_voice,
-                        rate_percent=options.rate_percent,
-                        pitch_hz=options.pitch_hz,
+            if cloned_tts is not None:
+                tts = cloned_tts
+            else:
+                seg_voice = voice_by_speaker[seg.speaker]
+                if seg_voice not in synthesizers:
+                    synthesizers[seg_voice] = stack.enter_context(
+                        EdgeTTSSynthesizer(
+                            target_language,
+                            voice=seg_voice,
+                            rate_percent=options.rate_percent,
+                            pitch_hz=options.pitch_hz,
+                        )
                     )
-                )
-            tts = synthesizers[seg_voice]
+                tts = synthesizers[seg_voice]
 
             raw_clip = segment_dir / f"{i:05d}_raw.wav"
             if not _synthesize_with_retry(tts, text, raw_clip):

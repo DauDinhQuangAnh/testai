@@ -14,6 +14,7 @@ import {
 } from "../lib/constants";
 import {
   defaultOptions,
+  type CustomVoiceOut,
   type JobOptions,
   type JobOut,
   type VideoMetadata,
@@ -75,6 +76,11 @@ export default function NewJob() {
     queryKey: ["voices", options.dubbing.target_language],
     queryFn: () => api.get<VoiceInfo[]>(`/api/meta/voices/${options.dubbing.target_language}`),
   });
+  const { data: customVoices = [] } = useQuery({
+    queryKey: ["custom-voices"],
+    queryFn: () => api.get<CustomVoiceOut[]>("/api/voices"),
+  });
+  const usingClonedVoice = Boolean(options.dubbing.custom_voice_id);
 
   const previewVoice = useMutation({
     mutationFn: async () => {
@@ -480,96 +486,176 @@ export default function NewJob() {
                       </div>
 
                       <div>
-                        <label className="label">Giọng đọc</label>
-                        {voicesLoading && (
-                          <p className="flex items-center gap-2 py-2 text-sm text-ink-soft">
-                            <Spinner /> Đang tải danh sách giọng...
-                          </p>
-                        )}
-                        <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
-                          {voices.map((v) => (
-                            <button
-                              key={v.id}
-                              onClick={() =>
-                                patch({ dubbing: { ...options.dubbing, voice: v.id } })
-                              }
-                              className={
-                                "rounded-lg border px-3 py-2 text-left text-sm transition " +
-                                ((options.dubbing.voice ?? voices[0]?.id) === v.id
-                                  ? "border-primary bg-primary-soft"
-                                  : "border-line bg-white hover:border-primary/40")
-                              }
-                            >
-                              <span className="font-medium">
-                                {v.recommended && "⭐ "}
-                                {v.label}
-                              </span>
-                              <p className="text-xs text-ink-soft">{v.style}</p>
-                            </button>
-                          ))}
-                        </div>
-                        <p className="mt-1 text-xs text-ink-soft">
-                          ⭐ = giọng bản địa. Video nhiều người nói sẽ tự gán thêm giọng khác nhau.
-                        </p>
-                      </div>
-
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <label className="label">
-                            Tốc độ nói: {options.dubbing.rate_percent > 0 ? "+" : ""}
-                            {options.dubbing.rate_percent}%
-                          </label>
-                          <input
-                            type="range"
-                            min={-50}
-                            max={50}
-                            value={options.dubbing.rate_percent}
-                            className="w-full accent-primary"
-                            onChange={(e) =>
+                        <label className="label">Kiểu giọng đọc</label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              patch({ dubbing: { ...options.dubbing, custom_voice_id: null } })
+                            }
+                            className={
+                              "rounded-lg border px-3 py-2 text-sm transition " +
+                              (!usingClonedVoice
+                                ? "border-primary bg-primary-soft"
+                                : "border-line bg-white hover:border-primary/40")
+                            }
+                          >
+                            Giọng có sẵn
+                          </button>
+                          <button
+                            type="button"
+                            disabled={customVoices.length === 0}
+                            onClick={() =>
                               patch({
                                 dubbing: {
                                   ...options.dubbing,
-                                  rate_percent: Number(e.target.value),
+                                  custom_voice_id: customVoices[0]?.id ?? null,
                                 },
                               })
                             }
-                          />
-                        </div>
-                        <div>
-                          <label className="label">
-                            Cao độ: {options.dubbing.pitch_hz > 0 ? "+" : ""}
-                            {options.dubbing.pitch_hz}Hz
-                          </label>
-                          <input
-                            type="range"
-                            min={-20}
-                            max={20}
-                            value={options.dubbing.pitch_hz}
-                            className="w-full accent-primary"
-                            onChange={(e) =>
-                              patch({
-                                dubbing: { ...options.dubbing, pitch_hz: Number(e.target.value) },
-                              })
+                            className={
+                              "rounded-lg border px-3 py-2 text-sm transition disabled:cursor-not-allowed disabled:opacity-40 " +
+                              (usingClonedVoice
+                                ? "border-primary bg-primary-soft"
+                                : "border-line bg-white hover:border-primary/40")
                             }
-                          />
+                          >
+                            Giọng đã clone
+                          </button>
                         </div>
+                        {customVoices.length === 0 && (
+                          <p className="mt-1 text-xs text-ink-soft">
+                            Chưa có giọng nào được clone - tạo ở trang{" "}
+                            <Link to="/voices" className="underline">
+                              Giọng của tôi
+                            </Link>
+                            .
+                          </p>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <button
-                          className="btn-ghost"
-                          onClick={() => previewVoice.mutate()}
-                          disabled={previewVoice.isPending}
-                        >
-                          {previewVoice.isPending && <Spinner />}
-                          {previewVoice.isPending ? "Đang tạo mẫu..." : "▶ Nghe thử giọng này"}
-                        </button>
-                        {sampleUrl && <audio ref={audioRef} controls src={sampleUrl} />}
-                      </div>
-                      {previewVoice.isError && (
-                        <p className="text-sm text-red-600">
-                          Không tạo được mẫu giọng (cần internet).
-                        </p>
+                      {usingClonedVoice ? (
+                        <div>
+                          <label className="label">Chọn giọng đã clone</label>
+                          <select
+                            className="input"
+                            value={options.dubbing.custom_voice_id ?? ""}
+                            onChange={(e) =>
+                              patch({
+                                dubbing: { ...options.dubbing, custom_voice_id: e.target.value },
+                              })
+                            }
+                          >
+                            {customVoices.map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-1 text-xs text-ink-soft">
+                            Giọng đã clone áp dụng cho toàn bộ video (chưa hỗ trợ gán riêng theo
+                            từng người nói, và bỏ qua tốc độ nói/cao độ bên dưới).
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="label">Giọng đọc</label>
+                            {voicesLoading && (
+                              <p className="flex items-center gap-2 py-2 text-sm text-ink-soft">
+                                <Spinner /> Đang tải danh sách giọng...
+                              </p>
+                            )}
+                            <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
+                              {voices.map((v) => (
+                                <button
+                                  key={v.id}
+                                  onClick={() =>
+                                    patch({ dubbing: { ...options.dubbing, voice: v.id } })
+                                  }
+                                  className={
+                                    "rounded-lg border px-3 py-2 text-left text-sm transition " +
+                                    ((options.dubbing.voice ?? voices[0]?.id) === v.id
+                                      ? "border-primary bg-primary-soft"
+                                      : "border-line bg-white hover:border-primary/40")
+                                  }
+                                >
+                                  <span className="font-medium">
+                                    {v.recommended && "⭐ "}
+                                    {v.label}
+                                  </span>
+                                  <p className="text-xs text-ink-soft">{v.style}</p>
+                                </button>
+                              ))}
+                            </div>
+                            <p className="mt-1 text-xs text-ink-soft">
+                              ⭐ = giọng bản địa. Video nhiều người nói sẽ tự gán thêm giọng khác
+                              nhau.
+                            </p>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="label">
+                                Tốc độ nói: {options.dubbing.rate_percent > 0 ? "+" : ""}
+                                {options.dubbing.rate_percent}%
+                              </label>
+                              <input
+                                type="range"
+                                min={-50}
+                                max={50}
+                                value={options.dubbing.rate_percent}
+                                className="w-full accent-primary"
+                                onChange={(e) =>
+                                  patch({
+                                    dubbing: {
+                                      ...options.dubbing,
+                                      rate_percent: Number(e.target.value),
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <label className="label">
+                                Cao độ: {options.dubbing.pitch_hz > 0 ? "+" : ""}
+                                {options.dubbing.pitch_hz}Hz
+                              </label>
+                              <input
+                                type="range"
+                                min={-20}
+                                max={20}
+                                value={options.dubbing.pitch_hz}
+                                className="w-full accent-primary"
+                                onChange={(e) =>
+                                  patch({
+                                    dubbing: {
+                                      ...options.dubbing,
+                                      pitch_hz: Number(e.target.value),
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <button
+                              className="btn-ghost"
+                              onClick={() => previewVoice.mutate()}
+                              disabled={previewVoice.isPending}
+                            >
+                              {previewVoice.isPending && <Spinner />}
+                              {previewVoice.isPending ? "Đang tạo mẫu..." : "▶ Nghe thử giọng này"}
+                            </button>
+                            {sampleUrl && <audio ref={audioRef} controls src={sampleUrl} />}
+                          </div>
+                          {previewVoice.isError && (
+                            <p className="text-sm text-red-600">
+                              Không tạo được mẫu giọng (cần internet).
+                            </p>
+                          )}
+                        </>
                       )}
                     </>
                   )}

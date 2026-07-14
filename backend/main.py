@@ -17,7 +17,7 @@ from sqlalchemy import text
 load_dotenv()
 
 from backend.db import get_session_factory  # noqa: E402 (can load_dotenv truoc)
-from backend.routers import admin, auth, jobs, meta, public  # noqa: E402
+from backend.routers import admin, auth, jobs, meta, public, voices  # noqa: E402
 
 
 def _ensure_schema() -> None:
@@ -58,6 +58,7 @@ app.include_router(jobs.router, prefix="/api")
 app.include_router(meta.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(public.router, prefix="/api")
+app.include_router(voices.router, prefix="/api")
 
 
 @app.get("/api/health")

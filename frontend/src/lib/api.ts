@@ -71,6 +71,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
   postForm: <T>(path: string, form: FormData) =>
     request<T>(path, { method: "POST", body: form }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
@@ -80,4 +86,10 @@ export const api = {
  *  header Authorization). */
 export function fileUrl(jobId: string, name: string): string {
   return `/api/jobs/${jobId}/files/${encodeURIComponent(name)}?token=${getToken() ?? ""}`;
+}
+
+/** URL video/audio GOC (chua qua dich/long tieng) - dung o trang Editor de
+ *  xem lai khi sua phu de. */
+export function originalUrl(jobId: string): string {
+  return `/api/jobs/${jobId}/original?token=${getToken() ?? ""}`;
 }

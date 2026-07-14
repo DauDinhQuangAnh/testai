@@ -4,6 +4,7 @@ Postgres/Redis/Celery that (monkeypatch `process_video_job.delay`).
 
 import io
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -61,6 +62,29 @@ def _create_upload_job(client, token: str) -> dict:
         "/api/jobs",
         data={"options": json.dumps(options)},
         files={"file": ("video.mp4", io.BytesIO(b"fake-video-bytes"), "video/mp4")},
+        headers=_auth_headers(token),
+    )
+    assert res.status_code == 200, res.text
+    return res.json()
+
+
+def _stub_ffmpeg_and_probe(monkeypatch, seconds: float = 10.0) -> None:
+    """`POST /voices` goi ffmpeg that + do do dai file that - stub ca 2 de
+    test khong can ffmpeg/audio that (xem
+    subtitle_pipeline/infrastructure/tts_vieneu.py: da spike THAT rieng,
+    xem HANDOFF.md muc 6p)."""
+    monkeypatch.setattr(
+        "backend.routers.voices.subprocess.run",
+        lambda cmd, **kw: Path(cmd[-1]).write_bytes(b"fake wav"),
+    )
+    monkeypatch.setattr("backend.routers.voices.probe_reference_seconds", lambda p: seconds)
+
+
+def _create_voice(client, token: str, name: str = "Giọng của tôi") -> dict:
+    res = client.post(
+        "/api/voices",
+        data={"name": name},
+        files={"file": ("sample.webm", io.BytesIO(b"fake-audio-bytes"), "audio/webm")},
         headers=_auth_headers(token),
     )
     assert res.status_code == 200, res.text
@@ -324,6 +348,239 @@ def test_job_files_only_classifies_real_dubbed_videos_as_videos(client):
     body = res.json()
     assert [video["name"] for video in body["videos"]] == [f"{stem}.vi.dubbed.mp4"]
     assert body["subtitles"]
+
+
+def test_get_subtitles_returns_segments(client):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+    output_dir = client.storage_dir / job["id"] / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "video.json").write_text(
+        json.dumps([{"start": 0.0, "end": 1.5, "text": "Xin chào", "speaker": None}]),
+        encoding="utf-8",
+    )
+
+    res = client.get(f"/api/jobs/{job['id']}/subtitles/goc", headers=_auth_headers(token))
+
+    assert res.status_code == 200
+    assert res.json() == [{"start": 0.0, "end": 1.5, "text": "Xin chào", "speaker": None}]
+
+
+def test_get_subtitles_missing_language_returns_404(client):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+
+    res = client.get(f"/api/jobs/{job['id']}/subtitles/vi", headers=_auth_headers(token))
+
+    assert res.status_code == 404
+
+
+def test_update_subtitles_rewrites_all_formats(client):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+    output_dir = client.storage_dir / job["id"] / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "video.json").write_text("[]", encoding="utf-8")
+
+    body = {"segments": [{"start": 0.0, "end": 2.0, "text": "Sửa lại", "speaker": "SPEAKER_00"}]}
+    res = client.put(
+        f"/api/jobs/{job['id']}/subtitles/goc", json=body, headers=_auth_headers(token)
+    )
+
+    assert res.status_code == 200
+    assert res.json() == {"saved": 1}
+    assert "Sửa lại" in (output_dir / "video.srt").read_text(encoding="utf-8")
+    assert json.loads((output_dir / "video.json").read_text(encoding="utf-8"))[0]["text"] == (
+        "Sửa lại"
+    )
+
+
+def test_update_subtitles_missing_language_returns_404(client):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+
+    res = client.put(
+        f"/api/jobs/{job['id']}/subtitles/vi",
+        json={"segments": []},
+        headers=_auth_headers(token),
+    )
+
+    assert res.status_code == 404
+
+
+def test_translate_endpoint_enqueues_task_when_job_done(client, monkeypatch):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+    backend_db.job_repo().update_status(job["id"], status=JobStatus.DONE)
+    enqueued = []
+    monkeypatch.setattr(
+        "backend.routers.jobs.translate_job",
+        type("FakeTask", (), {"delay": staticmethod(lambda *a: enqueued.append(a))}),
+    )
+
+    res = client.post(
+        f"/api/jobs/{job['id']}/translate",
+        json={"target_language": "en"},
+        headers=_auth_headers(token),
+    )
+
+    assert res.status_code == 200
+    assert enqueued == [(job["id"], "en")]
+
+
+def test_translate_endpoint_rejects_job_not_done(client):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+
+    res = client.post(
+        f"/api/jobs/{job['id']}/translate",
+        json={"target_language": "en"},
+        headers=_auth_headers(token),
+    )
+
+    assert res.status_code == 400
+
+
+def test_dub_endpoint_enqueues_task_when_job_done(client, monkeypatch):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+    backend_db.job_repo().update_status(job["id"], status=JobStatus.DONE)
+    enqueued = []
+    monkeypatch.setattr(
+        "backend.routers.jobs.dub_job",
+        type("FakeTask", (), {"delay": staticmethod(lambda *a: enqueued.append(a))}),
+    )
+
+    res = client.post(
+        f"/api/jobs/{job['id']}/dub",
+        json={"target_language": "vi", "voice": "vi-VN-HoaiMyNeural", "keep_original_audio": True},
+        headers=_auth_headers(token),
+    )
+
+    assert res.status_code == 200
+    assert enqueued == [(job["id"], "vi", "vi-VN-HoaiMyNeural", True, None)]
+
+
+def test_original_file_downloads_input(client):
+    token = _register(client)["token"]
+    job = _create_upload_job(client, token)
+
+    res = client.get(f"/api/jobs/{job['id']}/original", headers=_auth_headers(token))
+
+    assert res.status_code == 200
+    assert res.content == b"fake-video-bytes"
+
+
+def test_create_voice_uploads_and_lists(client, monkeypatch):
+    token = _register(client)["token"]
+    _stub_ffmpeg_and_probe(monkeypatch)
+
+    voice = _create_voice(client, token)
+
+    assert voice["name"] == "Giọng của tôi"
+    listed = client.get("/api/voices", headers=_auth_headers(token)).json()
+    assert [v["id"] for v in listed] == [voice["id"]]
+
+
+def test_create_voice_rejects_too_short_reference(client, monkeypatch):
+    token = _register(client)["token"]
+    _stub_ffmpeg_and_probe(monkeypatch, seconds=1.0)
+
+    res = client.post(
+        "/api/voices",
+        data={"name": "Ngắn quá"},
+        files={"file": ("sample.webm", io.BytesIO(b"fake-audio"), "audio/webm")},
+        headers=_auth_headers(token),
+    )
+
+    assert res.status_code == 400
+
+
+def test_delete_voice_removes_record(client, monkeypatch):
+    token = _register(client)["token"]
+    _stub_ffmpeg_and_probe(monkeypatch)
+    voice = _create_voice(client, token)
+
+    res = client.delete(f"/api/voices/{voice['id']}", headers=_auth_headers(token))
+
+    assert res.status_code == 200
+    assert client.get("/api/voices", headers=_auth_headers(token)).json() == []
+
+
+def test_user_cannot_see_other_users_voices(client, monkeypatch):
+    _stub_ffmpeg_and_probe(monkeypatch)
+    token_a = _register(client, "a@test.com")["token"]
+    token_b = _register(client, "b@test.com")["token"]
+    _create_voice(client, token_a)
+
+    assert client.get("/api/voices", headers=_auth_headers(token_b)).json() == []
+
+
+def test_delete_voice_owned_by_other_user_returns_404(client, monkeypatch):
+    _stub_ffmpeg_and_probe(monkeypatch)
+    token_a = _register(client, "a@test.com")["token"]
+    token_b = _register(client, "b@test.com")["token"]
+    voice = _create_voice(client, token_a)
+
+    res = client.delete(f"/api/voices/{voice['id']}", headers=_auth_headers(token_b))
+
+    assert res.status_code == 404
+
+
+def test_dub_endpoint_accepts_own_custom_voice(client, monkeypatch):
+    _stub_ffmpeg_and_probe(monkeypatch)
+    token = _register(client)["token"]
+    voice = _create_voice(client, token)
+    job = _create_upload_job(client, token)
+    backend_db.job_repo().update_status(job["id"], status=JobStatus.DONE)
+    enqueued = []
+    monkeypatch.setattr(
+        "backend.routers.jobs.dub_job",
+        type("FakeTask", (), {"delay": staticmethod(lambda *a: enqueued.append(a))}),
+    )
+
+    res = client.post(
+        f"/api/jobs/{job['id']}/dub",
+        json={"target_language": "vi", "custom_voice_id": voice["id"]},
+        headers=_auth_headers(token),
+    )
+
+    assert res.status_code == 200
+    assert enqueued == [(job["id"], "vi", None, False, voice["id"])]
+
+
+def test_dub_endpoint_rejects_voice_owned_by_other_user(client, monkeypatch):
+    _stub_ffmpeg_and_probe(monkeypatch)
+    token_a = _register(client, "a@test.com")["token"]
+    token_b = _register(client, "b@test.com")["token"]
+    voice = _create_voice(client, token_a)
+    job = _create_upload_job(client, token_b)
+    backend_db.job_repo().update_status(job["id"], status=JobStatus.DONE)
+
+    res = client.post(
+        f"/api/jobs/{job['id']}/dub",
+        json={"target_language": "vi", "custom_voice_id": voice["id"]},
+        headers=_auth_headers(token_b),
+    )
+
+    assert res.status_code == 404
+
+
+def test_create_job_rejects_custom_voice_owned_by_other_user(client, monkeypatch):
+    _stub_ffmpeg_and_probe(monkeypatch)
+    token_a = _register(client, "a@test.com")["token"]
+    token_b = _register(client, "b@test.com")["token"]
+    voice = _create_voice(client, token_a)
+
+    options = {"dubbing": {"enabled": True, "custom_voice_id": voice["id"]}}
+    res = client.post(
+        "/api/jobs",
+        data={"options": json.dumps(options)},
+        files={"file": ("video.mp4", io.BytesIO(b"fake-video-bytes"), "video/mp4")},
+        headers=_auth_headers(token_b),
+    )
+
+    assert res.status_code == 404
 
 
 def test_send_email_rejects_job_not_done(client):

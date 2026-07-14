@@ -1160,16 +1160,253 @@ dong dau (`if not chat_id: return`).
 - Chua co test end-to-end that voi Telegram Bot API that (chi test
   `create_download_job()` bang fake repo/task).
 
+## 6o. Trang "Sua phu de" (Editor) trong UI React (2026-07-14)
+
+**Trang thai:** Code xong, chay THAT tren may dev (Python that tai
+`D:\hoctap\python\python.exe` - khac mo ta cu trong HANDOFF ve sandbox khong
+Python, xem ghi chu dau file CLAUDE.md ve viec tu kiem tra lai moi truong):
+`pytest` 121/121 pass (them 8 test moi), `ruff check`/`ruff format` sach,
+`npm run build` (tsc + vite) pass. **Chua tu tay mo trinh duyet click qua
+UI that** (can Docker Postgres/Redis/Celery dang chay) - xem "Viec can lam".
+
+**Boi canh:** nguoi dung hoi "du an co the phat trien tiep gi khong", duoc
+de xuat vai huong (bat SMTP/Telegram co san, lam lai Editor, doi dich sang
+LLM, verify end-to-end) va chon **lam lai trang Sua phu de** - tinh nang nay
+bi mat khi xoa Streamlit (2026-07-04, xem muc 8 cu) va chua duoc port sang
+React.
+
+**Kien truc (dua theo `app/pages/3_Editor.py` cu, xem lai qua
+`git show becda70:app/pages/3_Editor.py` - commit truoc khi xoa):**
+- **Backend (`backend/routers/jobs.py`)** - 5 route moi tren `/jobs`:
+  - `GET /{id}/subtitles/{language}` - doc `{stem}.json` (language="goc")
+    hoac `{stem}.{language}.json` (ban da dich), tra ve list segment.
+  - `PUT /{id}/subtitles/{language}` - nhan list segment da sua, ghi de CA 5
+    dinh dang qua `FORMAT_WRITERS` (dung dinh dang ten file voi
+    `translate_and_export()`/`process_video_job` de khop 1:1).
+  - `POST /{id}/translate` - goi `translate_job.delay(job.id, target_language)`
+    (task co san tu Phase 5b/Editor cu, khong doi). Yeu cau `job.status ==
+    DONE`.
+  - `POST /{id}/dub` - goi `dub_job.delay(job.id, target_language, voice,
+    keep_original_audio)` (task co san, tham so roi giu nguyen tu ban cu).
+  - `GET /{id}/original` - serve `job.input_path` (file goc nam trong job_dir,
+    KHONG nam trong `output_dir` nen khong xuat hien qua `/files` hien co) -
+    dung cho `<video>` xem lai khi sua timing, cung ho tro token qua query
+    (`get_current_user` da ho tro san, khong can sua `security.py`).
+  - Schema moi trong `backend/schemas.py`: `SubtitleSegmentOut`,
+    `UpdateSubtitlesIn`, `TranslateJobIn`, `DubJobIn`.
+- **Frontend (`frontend/src/pages/Editor.tsx`, route moi
+  `/studio/jobs/:id/edit`)** - 3 tab giong cau truc Editor Streamlit cu:
+  - **Chinh sua phu de:** chon ngon ngu (tu `files.subtitles` - danh sach
+    nhom phu de co san tra ve boi `/jobs/{id}/files`), video/audio canh bang
+    danh sach segment dang form co the sua (khong dung bang/grid nhu
+    `st.data_editor` vi khong co thu vien tuong duong san co - moi segment 1
+    "card" voi input start/end/speaker + textarea text), nut "Them dong"/
+    "Xoa dong", nut "Luu va xuat lai file" goi `PUT /subtitles/{lang}`.
+  - **Dich phu de:** chon ngon ngu dich (tu `/meta/languages`), nut goi
+    `POST /translate` - chi xuat phu de, khong tao audio (giong y het editor
+    cu).
+  - **Long tieng lai:** chon ngon ngu + giong (tu `/meta/voices/{lang}`,
+    dropdown rong = mac dinh) + checkbox "Giu tieng goc giam 70%", nut goi
+    `POST /dub`.
+  - `frontend/src/lib/api.ts` them `put()` (chua co truoc do, chi co
+    get/post/postForm/del) va `originalUrl()` (cung mau `fileUrl()`, tro
+    `/jobs/{id}/original`).
+  - `frontend/src/lib/types.ts` them `SubtitleSegment`.
+  - `JobDetail.tsx` them nut "Sua phu de" (o ca 2 nhanh: co video ket qua LAN
+    truong hop job DONE nhung chua co video dubbed - vd. chi bat phu de,
+    khong bat long tieng).
+- Test moi trong `tests/test_backend_api.py` (8 test): doc/sua subtitles
+  (thanh cong + 404 khi thieu ngon ngu), dich/long tieng (enqueue task khi
+  job DONE + tu choi 400 khi chua DONE), tai file goc.
+
+**Khac voi ban Streamlit cu (co y, khong phai thieu sot):**
+- Khong dung bang/grid keo-sua-hang-loat (`st.data_editor` co
+  `num_rows="dynamic"`) - moi segment la 1 khoi form rieng, phu hop web
+  thuan (khong co thu vien data-grid nao trong `frontend/package.json`).
+  Neu video co RAT nhieu segment (video dai), UX nay se cham hon - danh gia
+  lai neu nguoi dung phan nan, luc do co the can them 1 thu vien
+  table/grid (vd. TanStack Table) hoac ao hoa danh sach (virtualization).
+- Video xem lai luon la file GOC (`GET /original`) hoac video dubbed KHOP
+  ngon ngu dang chon (neu co) - khac ban cu chi co 1 `st.video(input_path)`
+  co dinh, khong doi theo tab ngon ngu.
+
+**Viec can lam tren may dev that:** bat Docker (`docker compose up -d`) +
+Celery worker + `uvicorn`/`npm run dev`, mo 1 job DONE that, vao
+`/studio/jobs/:id/edit`:
+1. Tab "Chinh sua phu de": doi text/timing 1 dong, bam "Luu va xuat lai
+   file", xac nhan file `.srt`/`.json`... trong `storage/<job_id>/output/`
+   da cap nhat dung.
+2. Tab "Dich phu de": dich sang 1 ngon ngu chua co, cho Celery chay xong,
+   quay lai tab dau chon ngon ngu do, xac nhan doc/sua duoc phu de moi dich.
+3. Tab "Long tieng lai": chon giong khac, bam "Dich + Long tieng", cho xong,
+   kiem tra video moi xuat hien trong `/jobs/{id}/files` (videos).
+
+## 6p. Clone giong long tieng (VieNeu-TTS) (2026-07-14)
+
+**Trang thai:** Code xong, chay THAT tren may dev (`D:\hoctap\python\python.exe`
+- xem muc 6o ve phat hien Python that trong sandbox nay): `pytest` 131/131
+  pass (them 12 test moi), `ruff check`/`ruff format` sach, `npm run build`
+  pass. **QUAN TRONG - khac voi hau het adapter AI khac trong du an: DA SPIKE
+  THAT co che clone giong truoc khi viet code chinh thuc** (khong phai
+  "viet xong roi cho nguoi dung tu chay thu tren may that" nhu thong le) -
+  xem chi tiet spike o duoi. Van con 1 phan CHUA verify duoc trong sandbox
+  nay (khong co ffmpeg): buoc resample cuoi cung trong
+  `VieNeuCloneSynthesizer.synthesize()` (`ffmpeg -ar 24000 -ac 1`) - da xac
+  nhan code chay dung TOI NGAY TRUOC buoc nay (model load, encode reference,
+  infer, ghi wav 48kHz deu OK), chi ban than lenh ffmpeg (giong het pattern
+  da dung trong `tts_edge.py`) la chua chay duoc trong sandbox.
+
+**Boi canh:** nguoi dung hoi "dự án hiện tại có thể phát triển tiếp gì
+không", duoc de xuat 4 huong (SMTP/Telegram, Editor React, dich LLM, verify
+end-to-end) va chon lam Editor truoc (xem muc 6o). Sau khi xong Editor,
+nguoi dung de xuat them 1 tinh nang moi: "khu clone giong" - nguoi dung doc
+1 doan van, he thong dung do lam giong long tieng thay cho giong co san,
+va yeu cau **nghien cuu cong nghe + flow tot nhat** truoc khi lam.
+
+**Nghien cuu cong nghe (xem chi tiet da trinh bay voi nguoi dung, tom tat
+lai o day de tra cuu sau):**
+- Coqui XTTS-v2 (voice cloning tot nhat pho bien): **KHONG co tieng Viet**
+  trong 17 ngon ngu ho tro - da bi loai tu dau du an (xem muc 6i).
+- OpenVoice V2 (MyShell/MIT): tieng Viet **KHONG nam trong danh sach ngon
+  ngu native** (en/es/fr/zh/ja/ko) - chi "zero-shot cross-lingual", chat
+  luong tieng Viet khong chac chan.
+- RVC (Retrieval-based Voice Conversion): kha thi (VRAM 6GB du de train)
+  nhung can **buoc train rieng** (10-30 phut audio sach/giong) + kien truc
+  2 tang (TTS tao noi dung dung tieng Viet -> RVC doi timbre) phuc tap hon.
+  Ghi nhan la huong nang cap sau neu chat luong VieNeu-TTS khong du tot.
+- **VieNeu-TTS (github.com/pnnbao97/VieNeu-TTS, tac gia ca nhan, Apache-2.0)
+  - CHON huong nay:** model TTS tieng Viet NATIVE (10.000+ gio du lieu
+  Anh-Viet) co san clone giong zero-shot (chi can 3-8 giay audio tham
+  chieu, khong can buoc train rieng nhu RVC), chay CPU duoc (ONNX, ban
+  "v3turbo") nen nhe VRAM, offline hoan toan (khac edge-tts can internet).
+  Cai qua `pip install vieneu`.
+
+**Spike da chay THAT truoc khi code (2026-07-14):**
+1. `pip install vieneu` (cai them ca `edge-tts` de sinh 1 clip tieng Viet
+   lam reference audio thu nghiem, khong co san sample that trong sandbox).
+2. Gap loi 401 khi tai model tu HuggingFace (co che tang toc "Xet") - sua
+   bang bien moi truong `HF_HUB_DISABLE_XET=1` (da dat lam mac dinh trong
+   code, xem `tts_vieneu.py`).
+3. Gap loi thieu `torchaudio` (dung boi buoc trich speaker embedding, du
+   tai lieu ghi "CPU torch-free") - cai them
+   `pip install torchaudio --index-url https://download.pytorch.org/whl/cpu`.
+   **LUU Y quan trong cho may dev that:** `requirements.txt` da ghi chu ro
+   torchaudio gio la BAT BUOC (khong chi torch) - buoc cai torch/torchaudio
+   thu cong (muc 0) van dung, chi can dam bao dung ca 2.
+4. Sau khi sua 2 diem tren: tai model thanh cong (~13s sau khi cache am,
+   ~3.5 phut lan dau tai tu HuggingFace), clone giong tu clip edge-tts, sinh
+   cau moi - xac nhan qua `soundfile` audio dau ra hop le (RMS ~0.1, khong
+   im lang/khong loi). Toc do CPU: ~30s cho 3.6s audio (~8x cham hon thoi
+   gian thuc) - QUA CHAM de dung that tren CPU, nhung tren GPU CUDA that
+   (RTX 4050), thu vien tu chuyen backend PyTorch (device="auto") nhanh hon
+   nhieu - **CHUA do toc do thuc te tren GPU that**.
+5. Test rieng `VieNeuCloneSynthesizer` (class adapter chinh thuc, khong
+   phai script spike) - xac nhan chay dung toi ngay truoc buoc ffmpeg
+   resample cuoi (khong co ffmpeg trong sandbox nay).
+
+**Kien truc:**
+- `subtitle_pipeline/infrastructure/tts_vieneu.py` (moi) - `VieNeuCloneSynthesizer`
+  (VoiceSynthesizer Protocol, giong `EdgeTTSSynthesizer`): `__enter__` load
+  model + `encode_reference()` MOT LAN (khong phai moi segment), `synthesize()`
+  goi `infer(text, voice=<speaker_emb+codes da cache>)` roi ghi wav + ffmpeg
+  resample ve 24kHz mono (khop `tts_edge.OUTPUT_SAMPLE_RATE`). Ham thuan
+  `probe_reference_seconds()` do do dai audio (dung o backend de tu choi
+  mau qua ngan).
+- `subtitle_pipeline/application/dub.py`: `DubRenderOptions` them field
+  `custom_voice_ref_audio: Path | None`. Neu dat, `dub_and_export()` dung
+  **1 `VieNeuCloneSynthesizer` DUY NHAT cho CA VIDEO** (bo qua hoan toan
+  `_build_speaker_voice_map`/nhieu-giong-theo-nguoi-noi va
+  `voice`/`rate_percent`/`pitch_hz` cua edge-tts) - pham vi v1 CHUA ho tro
+  nhieu giong clone khac nhau cho nhieu nguoi noi trong 1 video (ghi nhan
+  o muc 8 neu can nang cap sau).
+- `app/db/models.py`: model moi `CustomVoice` (id, user_id, name,
+  ref_audio_path, created_at) - KHONG luu speaker embedding (numpy array),
+  `VieNeuCloneSynthesizer` tu ma hoa lai tu file moi lan dung (1 lan/job,
+  khong phai 1 lan/segment) de tranh serialize numpy array qua Celery.
+  Bang tao tu dong qua `create_all()` (khong can ALTER/reset DB nhu khi them
+  `Job.user_id` truoc day).
+- `app/voices/repository.py` (moi) - `CustomVoiceRepository`, cung mau
+  `JobRepository`/`UserRepository`. `backend/db.py` them `custom_voice_repo()`.
+- `backend/routers/voices.py` (moi, `/api/voices`): `POST` (multipart
+  name+file, ffmpeg transcode ve wav 24kHz, tu choi neu `probe_reference_seconds
+  < MIN_REFERENCE_SECONDS` (3s)), `GET` (list theo user), `DELETE` (xoa DB
+  + file, kiem tra chu so huu). Ham `get_owned_voice()` export de
+  `backend/routers/jobs.py` tai su dung (kiem tra quyen truoc khi enqueue
+  job dung custom voice).
+- `backend/routers/jobs.py`: `_create_job_from_options()` (wizard) va
+  `POST /{id}/dub` (Editor) deu kiem tra `custom_voice_id` thuoc dung user
+  truoc khi enqueue (tra 404 neu khong phai chu, giong pattern `_get_owned_job`).
+  `DubJobIn` them field `custom_voice_id`.
+- `app/jobs/tasks.py`: ham moi `_resolve_custom_voice_ref_audio()` (doc
+  `ref_audio_path` tu DB qua `CustomVoiceRepository`, tra `None` neu giong
+  da bi xoa - roi ve edge-tts thay vi lam fail job). Dung trong ca
+  `_build_dub_options()` (wizard, doc `dubbing.custom_voice_id` tu options)
+  lan `dub_job` Celery task (Editor, them tham so `custom_voice_id`).
+- Frontend: trang moi `frontend/src/pages/Voices.tsx` (route `/voices`,
+  link tu NavBar) - ghi am truc tiep qua `MediaRecorder` (API trinh duyet
+  chuan, khong them thu vien) VOI 1 doan van mau goi y san de doc, HOAC tai
+  file audio co san len; danh sach giong da tao + nut xoa. `NewJob.tsx`
+  (Buoc "Giong doc") va `Editor.tsx` (tab "Long tieng lai") deu them lua
+  chon "Giong co sanh" / "Giong da clone" (an cac o toc do/cao do/nghe thu
+  giong khi dung giong clone, vi khong ap dung).
+
+**Test moi:** `tests/test_tts_vieneu.py` (`probe_reference_seconds` - ham
+thuan, khong can model that). `tests/test_dub.py`: 1 test moi xac nhan
+`dub_and_export` dung 1 synthesizer clone duy nhat cho ca video du nhieu
+nguoi noi (khac han co che xoay vong giong cua edge-tts). `tests/test_backend_api.py`:
+9 test moi (`POST/GET/DELETE /voices`, tu choi mau qua ngan, phan quyen so
+huu giong o ca 2 duong tao job wizard lan `/dub` cua Editor) - stub
+`subprocess.run`/`probe_reference_seconds` (khong goi ffmpeg/audio that
+trong test, giong tinh than cac test khac trong repo).
+
+**Han che/rui ro CHUA kiem chung tren may dev that (GPU that):**
+- Chat luong giong clone tieng Viet thuc te CHUA duoc nguoi dung nghe thu
+  danh gia - spike chi xac nhan pipeline CHAY DUOC, khong danh gia chat
+  luong am thanh qua tai.
+- Toc do inference tren GPU CUDA that (RTX 4050) CHUA duoc do - CPU trong
+  spike qua cham (~8x realtime) de dung production, ky vong GPU nhanh hon
+  nhieu nhung chua co so lieu that.
+- VRAM peak cua VieNeu-TTS v3-turbo tren GPU CHUA duoc do - can luu y ngan
+  sach 6GB dang chia se voi Whisper/pyannote/NLLB (kien truc load-tuan-tu
+  hien co van ap dung: `VieNeuCloneSynthesizer` la 1 buoc rieng trong
+  `dub_and_export`, khong chay dong thoi voi buoc nao khac).
+- 1 giong clone CHI ap dung cho TOAN BO video (khong ho tro nhieu giong
+  clone khac nhau theo tung nguoi noi trong 1 video) - gioi han co y cho v1.
+- Buoc ghi am qua `MediaRecorder` trong trinh duyet **CHUA duoc thu qua
+  trinh duyet that** (sandbox khong co man hinh/micro) - dinh dang blob tra
+  ve (thuong la `audio/webm`) da duoc xu ly qua ffmpeg transcode phia
+  server nen ly thuyet tuong thich, nhung chua xac nhan bang mat.
+- `vieneu` keo theo `gradio`+`pandas` (dependency cua chinh no, du an
+  KHONG dung gradio - chi import class TTS) - lam nang requirements.txt
+  hon can thiet, chap nhan duoc de tranh tu viet lai wrapper HuggingFace.
+
+**Viec nguoi dung can lam tren may dev that:**
+1. `pip install -r requirements.txt` (cai `vieneu`, keo theo gradio/pandas/
+   onnxruntime...). Dam bao co ca `torchaudio` (khong chi `torch`) - neu
+   thieu, cai bang lenh CUDA phu hop (xem muc 0 buoc 4, doi index-url tu
+   cu121 sang cu128 dung driver dang co).
+2. Neu tai model loi 401/qua cham: kiem tra bien moi truong `HF_HUB_DISABLE_XET`
+   (da dat mac dinh=1 trong code, chi can quan tam neu van loi).
+3. Vao `/voices`, doc thu doan van mau (hoac tai 1 file ghi am san), luu
+   giong, xac nhan xuat hien trong danh sach.
+4. Tao 1 job moi (hoac vao Editor cua job DONE), chon "Giong da clone" o
+   buoc Giong doc, chon giong vua tao, chay het job - nghe thu video ket
+   qua, danh gia chat luong that + do toc do xu ly that tren GPU.
+5. Bao lai loi/danh gia chat luong de tinh chinh (vd. doi sang RVC neu chat
+   luong VieNeu-TTS khong du, hoac dieu chinh do dai/chat luong reference
+   audio goi y).
+
 ## 8. Van de dang mo / can quyet dinh
 
-- **Chua co trang "Sua phu de" (Editor) trong UI React** - Streamlit cu co
-  `3_Editor.py` cho sua text/timing/speaker cua 1 job DONE roi xuat lai file,
-  cong voi nut "Dich lai"/"Long tieng lai" doi ngon ngu/giong khac. Trang nay
-  KHONG duoc port sang `frontend/` khi chuyen UI (chi lam Studio + wizard tao
-  moi + chi tiet xem ket qua) va da bi xoa cung Streamlit (2026-07-04) - can
-  lam lai trong React neu van can tinh nang sua phu de sau khi co ket qua
-  (backend da co san `POST /jobs/{id}/rerun` dung lai toan bo config cu, nhung
-  chua co API rieng cho "chi doi ngon ngu/giong" hay "sua tay 1 dong phu de").
+- ~~Chua co trang "Sua phu de" (Editor) trong UI React~~ - **DA LAM LAI
+  (2026-07-14)**, xem muc 6o.
+- **Clone giong long tieng (VieNeu-TTS, muc 6p) CHUA duoc verify tren GPU
+  that** - code xong + spike xac nhan pipeline chay dung (model tai duoc,
+  clone giong khong loi), nhung TOC DO (spike CPU ~8x cham hon thoi gian
+  thuc), VRAM peak, va CHAT LUONG giong clone tieng Viet thuc te deu chua
+  co so lieu tren RTX 4050. Neu chat luong khong dat, xem lai huong RVC da
+  ghi nhan trong muc 6p (can them buoc train, phuc tap hon nhung co the
+  chat luong on dinh hon).
 - **Code Phase 1-3 chua duoc chay qua Ruff/pytest lan nao** - chuan code o
   `docs/CODE_STYLE.md` moi duoc chot (2026-07-02) nhung code truoc do viet
   trong sandbox khong co Python that nen chua verify duoc. Da ra soat thu cong
@@ -1967,3 +2204,43 @@ dong dau (`if not chat_id: return`).
   Mermaid, bang cong nghe su dung, danh sach tinh nang co emoji, giu nguyen
   noi dung ky thuat (khong bia them tinh nang chua co). Khong dong code, chi
   doi 1 file markdown.
+- 2026-07-14: **Dep `__pycache__`/`.pytest_cache`/`.ruff_cache`** theo yeu
+  cau nguoi dung ("nhe source") - xac nhan qua `git ls-files` khong file nao
+  bi track (deu la cache tu sinh), xoa 14 thu muc, khong dong test that nao.
+- 2026-07-14 (lan 2): **Lam lai trang "Sua phu de" (Editor) trong UI React**
+  - nguoi dung hoi huong phat trien tiep, chon tinh nang nay trong 4 lua
+  chon de xuat. Xem chi tiet muc 6o. Tom tat: 5 route moi trong
+  `backend/routers/jobs.py` (GET/PUT `/subtitles/{language}`, POST
+  `/translate`, POST `/dub`, GET `/original`), trang moi
+  `frontend/src/pages/Editor.tsx` (3 tab: Chinh sua phu de/Dich/Long tieng
+  lai, route `/studio/jobs/:id/edit`), nut "Sua phu de" moi trong
+  `JobDetail.tsx`. **Phat hien quan trong ve moi truong:** sandbox phien nay
+  CO Python that (`D:\hoctap\python\python.exe`, khac mo ta cu trong
+  HANDOFF/CLAUDE.md ve sandbox khong Python) - da chay THAT `pytest` (121/121
+  pass, them 8 test moi trong `tests/test_backend_api.py`), `ruff check`
+  sach, `ruff format --check` (phat hien + sua 1 file `app/jobs/stages.py`
+  chua dung format tu truoc, khong lien quan thay doi lan nay), va
+  `npm run build` (tsc + vite) pass that qua Node/npm co san. **Chua tu tay
+  test qua trinh duyet that** (can Docker Postgres/Redis/Celery worker dang
+  chay) - xem checklist muc 6o.
+- 2026-07-14 (lan 3): **Them tinh nang clone giong long tieng (VieNeu-TTS)**
+  - nguoi dung de xuat "khu clone giong: đọc 1 đoạn, xử lý thành âm thanh
+  được chọn khi lồng tiếng", yeu cau nghien cuu cong nghe + flow truoc, roi
+  xac nhan "build luôn đi". Xem chi tiet muc 6p. Da **SPIKE THAT** (khac
+  thong le "viet roi cho nguoi dung tu chay thu"): cai `vieneu` that, tai
+  model that tu HuggingFace (sua 2 loi thuc te gap phai: 401 qua "Xet" ->
+  `HF_HUB_DISABLE_XET=1`; thieu `torchaudio` -> cai them), clone giong tu 1
+  clip edge-tts sinh ra, xac nhan audio dau ra hop le qua `soundfile`. Tom
+  tat code: adapter moi `subtitle_pipeline/infrastructure/tts_vieneu.py`
+  (`VieNeuCloneSynthesizer`), `DubRenderOptions.custom_voice_ref_audio`
+  moi trong `dub.py` (1 giong clone duy nhat cho ca video, khong xoay vong
+  nhu edge-tts), model DB moi `CustomVoice` + `app/voices/repository.py` +
+  router moi `backend/routers/voices.py` (`/api/voices` CRUD, kiem tra chu
+  so huu), trang moi `frontend/src/pages/Voices.tsx` (ghi am qua
+  `MediaRecorder` + doan van mau, hoac tai file) noi vao NavBar/route
+  `/voices`, wizard NewJob + Editor deu them lua chon "Giong da clone".
+  **131/131 pytest pass (them 12 test moi), ruff sach, `npm run build`
+  pass.** Toc do CPU trong spike ~8x cham hon thoi gian thuc (khong dung
+  duoc that) - ky vong nhanh hon nhieu tren GPU CUDA that (RTX 4050, tu
+  dong chon qua `device="auto"`) nhung **CHUA do toc do/VRAM/chat luong
+  giong that tren GPU** - xem checklist day du + rui ro con lai o muc 6p.

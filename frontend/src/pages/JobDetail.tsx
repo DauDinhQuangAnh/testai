@@ -148,6 +148,9 @@ export default function JobDetail() {
                   {resultVideo.name}
                 </p>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  <Link to={`/studio/jobs/${id}/edit`} className="btn-ghost">
+                    Sửa phụ đề
+                  </Link>
                   <button
                     type="button"
                     className="btn-ghost"
@@ -178,7 +181,12 @@ export default function JobDetail() {
         )}
 
         {job.status === "done" && files && !resultVideo && (
-          <div className="card text-ink-soft">Chưa tìm thấy clip kết quả.</div>
+          <div className="card flex items-center justify-between gap-3 text-ink-soft">
+            Chưa tìm thấy clip kết quả.
+            <Link to={`/studio/jobs/${id}/edit`} className="btn-ghost shrink-0">
+              Sửa phụ đề
+            </Link>
+          </div>
         )}
       </main>
     </div>
