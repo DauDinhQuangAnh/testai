@@ -723,8 +723,9 @@ export default function NewJob() {
                       }
                     />
                     <p className="mt-1 text-xs text-ink-soft">
-                      Ép giữ đúng thuật ngữ khi dịch. Dịch theo ngữ cảnh sâu (LLM) sẽ bổ sung sau
-                      — engine hiện tại là NLLB chạy local.
+                      Ép giữ đúng thuật ngữ khi dịch. Nếu server đã cấu hình GEMINI_API_KEY, bản
+                      dịch tự động dùng Gemini (giữ ngữ cảnh xuyên suốt video); nếu không sẽ dùng
+                      NLLB chạy local.
                     </p>
                   </div>
                   <div>

@@ -2,8 +2,14 @@
 translate_job (app/jobs/tasks.py). Tach rieng khoi TranscriptionPipeline vi day
 la hanh dong tuy chon nguoi dung kich hoat sau khi job chinh da xong, khong
 phai buoc bat buoc trong pipeline chinh.
+
+Engine dich chon tu dong theo cau hinh: co GEMINI_API_KEY -> Gemini (LLM,
+dich theo ngu canh, xem translator_gemini.py), khong co -> NLLB local nhu
+truoc. Gemini loi giua chung (mat mang/het quota) thi fallback ve NLLB ngay
+trong cung lan dich - khong lam fail job, chi mat chat luong ngu canh.
 """
 
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -16,7 +22,24 @@ from subtitle_pipeline.application.optimize import (
 from subtitle_pipeline.application.sentence_merge import merge_into_sentences
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.export.formats import FORMAT_WRITERS
+from subtitle_pipeline.infrastructure.translator_gemini import GeminiTranslator
 from subtitle_pipeline.infrastructure.translator_nllb import NLLBTranslator
+
+
+def _translate_segments(
+    sentences: list[SubtitleSegment], source_language: str, target_language: str, device: str
+) -> list[SubtitleSegment]:
+    """Dich bang Gemini neu co GEMINI_API_KEY, fallback NLLB local khi khong
+    co key hoac Gemini loi (da tu retry ben trong GeminiTranslator roi).
+    """
+    if os.environ.get("GEMINI_API_KEY"):
+        try:
+            with GeminiTranslator(source_language, target_language) as translator:
+                return translator.translate(sentences)
+        except Exception as exc:
+            print(f"[translate] Gemini lỗi ({exc}) - chuyển sang NLLB chạy máy")
+    with NLLBTranslator(source_language, target_language, device) as translator:
+        return translator.translate(sentences)
 
 
 def translate_and_export(
@@ -42,8 +65,7 @@ def translate_and_export(
     if glossary:
         sentences = [replace(seg, text=mask_terms(seg.text, glossary)) for seg in sentences]
 
-    with NLLBTranslator(source_language, target_language, device) as translator:
-        translated = translator.translate(sentences)
+    translated = _translate_segments(sentences, source_language, target_language, device)
 
     if glossary:
         translated = [replace(seg, text=restore_terms(seg.text, glossary)) for seg in translated]

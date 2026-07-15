@@ -39,6 +39,47 @@ def test_clips_placed_at_correct_offset(tmp_path: Path):
     assert np.allclose(track[600:], 0.0, atol=1e-3)
 
 
+def test_overlapping_clips_are_mixed_not_clobbered(tmp_path: Path):
+    sample_rate = 1000
+    clip_a = tmp_path / "a.wav"
+    clip_b = tmp_path / "b.wav"
+    sf.write(clip_a, np.full(400, 0.25, dtype=np.float32), sample_rate)
+    sf.write(clip_b, np.full(100, 0.5, dtype=np.float32), sample_rate)
+
+    output_path = tmp_path / "track.wav"
+    build_dub_track(
+        clips=[(0.0, clip_a), (0.2, clip_b)],
+        total_duration=1.0,
+        sample_rate=sample_rate,
+        output_path=output_path,
+    )
+
+    track, _ = sf.read(output_path, dtype="float32")
+    # Doan chong lan (0.2s-0.3s): 2 clip cong don, khong clip nao bi cat.
+    assert np.allclose(track[200:300], 0.75, atol=1e-3)
+    # Duoi clip A sau khi clip B ket thuc van con nguyen (khong bi ghi de mat).
+    assert np.allclose(track[300:400], 0.25, atol=1e-3)
+
+
+def test_summed_overlap_is_clipped_to_valid_range(tmp_path: Path):
+    sample_rate = 1000
+    clip_a = tmp_path / "a.wav"
+    clip_b = tmp_path / "b.wav"
+    sf.write(clip_a, np.full(100, 0.8, dtype=np.float32), sample_rate)
+    sf.write(clip_b, np.full(100, 0.8, dtype=np.float32), sample_rate)
+
+    output_path = tmp_path / "track.wav"
+    build_dub_track(
+        clips=[(0.0, clip_a), (0.0, clip_b)],
+        total_duration=0.2,
+        sample_rate=sample_rate,
+        output_path=output_path,
+    )
+
+    track, _ = sf.read(output_path, dtype="float32")
+    assert np.all(track <= 1.0)  # 0.8 + 0.8 bi clip ve 1.0, khong wrap/vo tieng
+
+
 def test_clip_beyond_total_duration_is_dropped(tmp_path: Path):
     sample_rate = 1000
     clip = tmp_path / "late.wav"

@@ -16,8 +16,11 @@ deepfilternet>=0.5.6
 python-dotenv>=1.0.1
 huggingface_hub>=0.23.0
 
-# Job queue + DB (backend/ FastAPI enqueue task, Celery worker xu ly)
+# Job queue + DB (backend/ FastAPI enqueue task, Celery worker xu ly).
+# Alembic quan ly thay doi schema (migrations/ + alembic.ini) - create_all
+# chi tao bang moi, khong ALTER bang co san (xem backend/main.py).
 sqlalchemy>=2.0.30
+alembic>=1.13.0
 psycopg2-binary>=2.9.9
 celery>=5.4.0
 redis>=5.0.4

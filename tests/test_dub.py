@@ -1,12 +1,16 @@
-"""Test _clean_text_for_speech - logic thuan, khong can TTS/ffmpeg that."""
+"""Test cac ham thuan cua application/dub.py (_clean_text_for_speech,
+_build_speaker_voice_map, _fit_target_duration) + flow dub_and_export voi
+adapter fake - khong can TTS/ffmpeg that."""
 
 from pathlib import Path
 
 import subtitle_pipeline.application.dub as dub
 from subtitle_pipeline.application.dub import (
+    MAX_TEMPO_FACTOR,
     DubRenderOptions,
     _build_speaker_voice_map,
     _clean_text_for_speech,
+    _fit_target_duration,
 )
 from subtitle_pipeline.domain.models import SubtitleSegment
 from subtitle_pipeline.infrastructure.tts_edge import VOICE_OPTIONS, default_voice
@@ -80,6 +84,131 @@ def test_speaker_voice_map_cycles_when_more_speakers_than_voices():
     assert len(result) == total_voices + 2  # van gan du, xoay vong khong loi
 
 
+def test_fit_target_duration_returns_none_when_clip_fits_window():
+    assert _fit_target_duration(clip_duration=2.0, window_seconds=3.0) is None
+
+
+def test_fit_target_duration_tolerates_small_overflow():
+    # Tran 4% < FIT_TOLERANCE 5% - khong dang re-encode.
+    assert _fit_target_duration(clip_duration=2.08, window_seconds=2.0) is None
+
+
+def test_fit_target_duration_shrinks_to_window_when_within_max_tempo():
+    assert _fit_target_duration(clip_duration=2.4, window_seconds=2.0) == 2.0
+
+
+def test_fit_target_duration_caps_speedup_at_max_tempo():
+    # Can 2x moi vua window 2.0 - vuot nguong, chi tang toc MAX_TEMPO_FACTOR.
+    target = _fit_target_duration(clip_duration=4.0, window_seconds=2.0)
+
+    assert target == 4.0 / MAX_TEMPO_FACTOR
+    assert target > 2.0  # van tran, phan du chap nhan chong lan
+
+
+def test_fit_target_duration_ignores_non_positive_window():
+    assert _fit_target_duration(clip_duration=1.0, window_seconds=0.0) is None
+
+
+def test_dub_speeds_up_clip_longer_than_gap_to_next_segment(tmp_path, monkeypatch):
+    captured = {}
+    stretch_calls = []
+
+    class FakeTTS:
+        def __init__(self, language: str, voice: str | None = None, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def synthesize(self, text: str, output_path: Path) -> None:
+            output_path.write_bytes(b"fake wav")
+
+    def fake_stretch(input_path, output_path, target_duration):
+        stretch_calls.append((input_path, output_path, target_duration))
+        output_path.write_bytes(b"fake fitted wav")
+
+    monkeypatch.setattr(dub, "EdgeTTSSynthesizer", FakeTTS)
+    monkeypatch.setattr(dub, "build_dub_track", lambda *a, **k: captured.update(clips=a[0]))
+    monkeypatch.setattr(
+        dub, "mux_audio_into_video", lambda *a, **k: a[2].write_bytes(b"fake video")
+    )
+    monkeypatch.setattr(dub, "_total_duration", lambda work_dir, source_video: 10.0)
+    # Clip dau dai 2.4s nhung cau ke tiep bat dau sau 2s -> tang toc 1.2x
+    # (trong nguong MAX_TEMPO_FACTOR) ve dung 2s.
+    monkeypatch.setattr(
+        dub, "_clip_duration_seconds", lambda path: 2.4 if "00000" in path.name else 1.0
+    )
+    monkeypatch.setattr(dub, "time_stretch_to_duration", fake_stretch)
+    monkeypatch.setattr(dub.shutil, "rmtree", lambda path, ignore_errors=False: None)
+
+    work_dir = tmp_path / "work"
+    dub.dub_and_export(
+        segments=[
+            SubtitleSegment(start=0.0, end=1.5, text="cau mot", speaker=None),
+            SubtitleSegment(start=2.0, end=3.0, text="cau hai", speaker=None),
+        ],
+        target_language="vi",
+        source_video=tmp_path / "input.mp4",
+        work_dir=work_dir,
+        out_dir=tmp_path / "out",
+        stem="input",
+    )
+
+    segment_dir = work_dir / "dub_vi_segments"
+    assert stretch_calls == [(segment_dir / "00000_raw.wav", segment_dir / "00000_fit.wav", 2.0)]
+    # Clip 1 dung ban da tang toc, clip 2 (vua khoang trong) giu nguyen ban raw.
+    assert captured["clips"] == [
+        (0.0, segment_dir / "00000_fit.wav"),
+        (2.0, segment_dir / "00001_raw.wav"),
+    ]
+
+
+def test_dub_keeps_raw_clip_when_stretch_fails(tmp_path, monkeypatch):
+    captured = {}
+
+    class FakeTTS:
+        def __init__(self, language: str, voice: str | None = None, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def synthesize(self, text: str, output_path: Path) -> None:
+            output_path.write_bytes(b"fake wav")
+
+    def broken_stretch(input_path, output_path, target_duration):
+        raise RuntimeError("ffmpeg loi gia lap")
+
+    monkeypatch.setattr(dub, "EdgeTTSSynthesizer", FakeTTS)
+    monkeypatch.setattr(dub, "build_dub_track", lambda *a, **k: captured.update(clips=a[0]))
+    monkeypatch.setattr(
+        dub, "mux_audio_into_video", lambda *a, **k: a[2].write_bytes(b"fake video")
+    )
+    monkeypatch.setattr(dub, "_total_duration", lambda work_dir, source_video: 1.0)
+    monkeypatch.setattr(dub, "_clip_duration_seconds", lambda path: 5.0)
+    monkeypatch.setattr(dub, "time_stretch_to_duration", broken_stretch)
+    monkeypatch.setattr(dub.shutil, "rmtree", lambda path, ignore_errors=False: None)
+
+    work_dir = tmp_path / "work"
+    dub.dub_and_export(
+        segments=[SubtitleSegment(start=0.0, end=1.0, text="xin chao", speaker=None)],
+        target_language="vi",
+        source_video=tmp_path / "input.mp4",
+        work_dir=work_dir,
+        out_dir=tmp_path / "out",
+        stem="input",
+    )
+
+    # Loi stretch khong lam fail job - dung lai ban raw.
+    assert captured["clips"] == [(0.0, work_dir / "dub_vi_segments" / "00000_raw.wav")]
+
+
 def test_dub_uses_raw_clips_without_stretching(tmp_path, monkeypatch):
     captured = {}
 
@@ -111,6 +240,7 @@ def test_dub_uses_raw_clips_without_stretching(tmp_path, monkeypatch):
     monkeypatch.setattr(dub, "build_dub_track", fake_build_dub_track)
     monkeypatch.setattr(dub, "mux_audio_into_video", fake_mux_audio_into_video)
     monkeypatch.setattr(dub, "_total_duration", lambda work_dir, source_video: 3.0)
+    monkeypatch.setattr(dub, "_clip_duration_seconds", lambda path: 0.4)
     monkeypatch.setattr(dub.shutil, "rmtree", lambda path, ignore_errors=False: None)
 
     work_dir = tmp_path / "work"
@@ -157,6 +287,7 @@ def test_dub_creates_one_synthesizer_per_distinct_speaker(tmp_path, monkeypatch)
         dub, "mux_audio_into_video", lambda *a, **k: a[2].write_bytes(b"fake video")
     )
     monkeypatch.setattr(dub, "_total_duration", lambda work_dir, source_video: 3.0)
+    monkeypatch.setattr(dub, "_clip_duration_seconds", lambda path: 0.4)
     monkeypatch.setattr(dub.shutil, "rmtree", lambda path, ignore_errors=False: None)
 
     work_dir = tmp_path / "work"
@@ -205,6 +336,7 @@ def test_dub_uses_single_cloned_voice_for_all_speakers_when_ref_audio_set(tmp_pa
         dub, "mux_audio_into_video", lambda *a, **k: a[2].write_bytes(b"fake video")
     )
     monkeypatch.setattr(dub, "_total_duration", lambda work_dir, source_video: 3.0)
+    monkeypatch.setattr(dub, "_clip_duration_seconds", lambda path: 0.4)
     monkeypatch.setattr(dub.shutil, "rmtree", lambda path, ignore_errors=False: None)
 
     work_dir = tmp_path / "work"

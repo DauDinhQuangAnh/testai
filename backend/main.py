@@ -8,36 +8,37 @@ truoc - backend chi enqueue task, khong tu chay pipeline AI.
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 load_dotenv()
 
-from backend.db import get_session_factory  # noqa: E402 (can load_dotenv truoc)
 from backend.routers import admin, auth, jobs, meta, public, voices  # noqa: E402
 
 
-def _ensure_schema() -> None:
-    """`create_all()` chi tao BANG con thieu, khong them COT vao bang co san
-    - job cu tao truoc khi co Auth thieu cot `user_id`. ALTER truc tiep
-    (Postgres ho tro IF NOT EXISTS; SQLite khong ho tro nen bo qua loi -
-    SQLite chi dung trong test, schema luon duoc tao moi du cot).
+def _run_migrations() -> None:
+    """Nang schema DB len ban moi nhat bang Alembic luc khoi dong (thay ALTER
+    thu cong `_ensure_schema` cu - xem migrations/versions/). Nuot loi co chu
+    dich nhu ban cu: khi chay test/khong co Postgres, backend van phai import
+    va khoi dong duoc (schema cua test do create_all trong
+    make_session_factory lo, khong can Alembic).
     """
-    factory = get_session_factory()
     try:
-        with factory() as session:
-            session.execute(text("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)"))
-            session.commit()
-    except Exception:
-        pass
+        from alembic import command
+        from alembic.config import Config
+
+        config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+        command.upgrade(config, "head")
+    except Exception as exc:
+        print(f"[backend] Bỏ qua migration lúc khởi động: {exc}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _ensure_schema()
+    _run_migrations()
     yield
 
 

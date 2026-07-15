@@ -42,8 +42,13 @@ def build_dub_track(
         if start_sample >= total_samples:
             continue
         end_sample = min(start_sample + len(data), total_samples)
-        track[start_sample:end_sample] = data[: end_sample - start_sample]
+        # Cong don thay vi gan de (=) - neu 2 clip chong lan (cau TTS dai hon
+        # khoang trong, da tang toc het nguong ma van tran - xem
+        # application/dub.py), ca 2 cung nghe duoc thay vi clip sau cat cut
+        # clip truoc roi de sot duoi clip truoc phat lai sau do.
+        track[start_sample:end_sample] += data[: end_sample - start_sample]
 
+    np.clip(track, -1.0, 1.0, out=track)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     sf.write(str(output_path), track, sample_rate)
 

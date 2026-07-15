@@ -506,9 +506,10 @@ danh gia chat luong giong doc "qua te") - doi TTS backend + tu don file:**
 - Dong bo audio-video chi o muc "khop khung thoi gian [start, end]" bang
   time-stretch (`atempo`), KHONG phai lip-sync that (khong co model dong bo
   mieng).
-- Neu cau TTS qua dai/qua ngan so voi khung thoi gian goc, `atempo` co the lam
-  giong nghe khong tu nhien (nhanh/cham bat thuong) - chua co gioi han canh
-  bao hay fallback nao khac ngoai viec chia nho factor cho hop le voi ffmpeg.
+- ~~Neu cau TTS qua dai/qua ngan so voi khung thoi gian goc, `atempo` co the
+  lam giong nghe khong tu nhien (nhanh/cham bat thuong)~~ - **DA GIAI QUYET
+  (2026-07-15, xem muc 6q)**: chi tang toc khi clip THUC SU tran sang cau ke
+  tiep, toi da 1.3x; phan tran con lai duoc tron cong thay vi ghi de.
 - **`edge-tts` can INTERNET on dinh cho MOI segment** - video dai nhieu cau se
   goi API nhieu lan. **DA SUA (2026-07-03 lan 3, sau khi gap loi that tren may
   dev)**: `dub_and_export()` gio bo qua segment co text rong/chi khoang trang
@@ -620,9 +621,10 @@ job (trace + nut "Tao lai voi cau hinh nay" o Dashboard).
 - Preset trinh bay ("Can bang"/"Suc tich"/"Thoai mai") map sang
   `max_chars_per_line`/`max_lines` cua `optimize_segments` (tham so moi
   cua `translate_and_export`).
-- **GIOI HAN TRUNG THUC:** "dich theo ngu canh/giong dieu" kieu VietDub can
+- ~~**GIOI HAN TRUNG THUC:** "dich theo ngu canh/giong dieu" kieu VietDub can
   LLM - NLLB khong nhan chi dan. Ghi ro o UI; LLM translator adapter la
-  viec sau (can API key).
+  viec sau (can API key).~~ - **DA LAM (2026-07-15, xem muc 6q)**: co
+  GeminiTranslator (GEMINI_API_KEY trong .env), fallback NLLB.
 
 **Buoc 4 - Phu de:**
 - `SubtitleStyle` dataclass moi trong `export/formats.py` (font/co chu/mau
@@ -1395,6 +1397,73 @@ trong test, giong tinh than cac test khac trong repo).
 5. Bao lai loi/danh gia chat luong de tinh chinh (vd. doi sang RVC neu chat
    luong VieNeu-TTS khong du, hoac dieu chinh do dai/chat luong reference
    audio goi y).
+
+## 6q. Nang cap chat luong "Uu tien 3" (2026-07-15): audio fit + Gemini + Alembic
+
+3 nang cap lam cung 1 phien theo yeu cau nguoi dung (chon tu danh sach de
+xuat sau lan ra soat du an). Toan bo da chay THAT: 155/155 pytest pass,
+ruff sach, `npm run build` pass tren sandbox co Python that.
+
+**1. Chong chong lan/troi audio khi long tieng** (giai quyet danh doi ghi
+nhan tu 2026-07-03 lan 8 khi bo hoan toan atempo):
+- `application/dub.py`: ham thuan moi `_fit_target_duration(clip_duration,
+  window)` + `_fit_clips_to_timeline()`. Sau khi synthesize xong tat ca
+  clip, clip nao dai hon khoang trong toi START cua cau ke tiep (qua nguong
+  `FIT_TOLERANCE=1.05`) se duoc TANG TOC bang ffmpeg atempo, nhung toi da
+  `MAX_TEMPO_FACTOR=1.3` (nguong nghe con tu nhien - khac co che cu ep khop
+  cung [start, end] bat ke factor, lam giong nghe do). Vuot nguong van tran
+  thi chap nhan chong lan phan du + in canh bao tong hop ra log worker.
+  Loi ffmpeg khi stretch chi lam clip do dung ban raw, khong fail job.
+- `infrastructure/audio_mux.py` `build_dub_track`: doan chong lan gio TRON
+  CONG (`+=`) thay vi gan de (`=`) - truoc do clip sau cat cut clip truoc
+  roi con de sot duoi clip truoc phat lai sau khi clip sau ket thuc (artifact
+  te hon ca chong lan). Co `np.clip` ve [-1, 1] chong vo tieng khi cong don.
+- Test moi trong `tests/test_dub.py` (5 test `_fit_target_duration` + 2 test
+  tich hop stretch/loi stretch) va `tests/test_audio_mux.py` (tron cong +
+  clip bien do). **CHUA nghe thu tren video that** - can tao job voi video
+  co cau noi day (vd. tieng Anh nhanh dich sang tieng Viet dai hon) va nghe
+  doan truoc day bi chong lan.
+
+**2. Dich theo ngu canh bang Google Gemini (LLM)** (lam duoc dieu ghi "can
+LLM - viec sau" o muc 6j):
+- Adapter moi `subtitle_pipeline/infrastructure/translator_gemini.py`
+  (`GeminiTranslator`) - cung interface context-manager + `translate()` voi
+  `NLLBTranslator`. Goi REST `generateContent` truc tiep qua urllib stdlib
+  (KHONG them dependency - cung ly do email_sender dung smtplib). Dich theo
+  BATCH 40 cau/request de giu ngu canh xuyen suot + it request; ep tra JSON
+  array dung so phan tu (`response_mime_type=application/json`), retry 3
+  lan/batch, temperature 0.2.
+- `application/translate.py`: ham moi `_translate_segments()` - co
+  `GEMINI_API_KEY` trong env thi dung Gemini, khong co HOAC Gemini loi
+  (mat mang/het quota sau khi retry) thi tu fallback ve NLLB local ngay
+  trong cung lan dich - tinh nang dich khong bao gio phu thuoc cung Gemini.
+- `.env.example`: them `GEMINI_API_KEY` (tao mien phi tai
+  https://aistudio.google.com/apikey) + `GEMINI_MODEL` (mac dinh
+  `gemini-2.5-flash`). UI Buoc 3 wizard cap nhat ghi chu engine.
+- Test moi `tests/test_translator_gemini.py` (11 test: prompt/parse/batch/
+  retry/chon engine/fallback - mock `_call_api`, khong goi mang). **CHUA
+  goi API Gemini that lan nao** - can dien key that vao `.env` roi chay 1
+  job dich de xac nhan prompt/parse hoat dong voi response that.
+
+**3. Alembic migration cho DB** (het canh "doi schema la phai reset DB"):
+- File moi: `alembic.ini` (goc repo), `migrations/env.py` (doc DATABASE_URL
+  tu .env/bien moi truong, dung chung nguon voi app/db/session.py),
+  `migrations/versions/0001_initial_schema.py` - baseline co GUARD inspector:
+  DB moi tinh thi tao du 3 bang (users/jobs/custom_voices), DB co san do
+  `create_all()` tao truoc day thi bo qua bang da co + chi va cot
+  `jobs.user_id` neu thieu. Tu revision 0002 tro di viet ALTER binh thuong
+  (`python -m alembic revision -m "..." --autogenerate`).
+- `backend/main.py`: `_ensure_schema()` (ALTER tay `user_id`) thay bang
+  `_run_migrations()` goi `alembic upgrade head` luc khoi dong - van nuot
+  loi co chu dich (test/sandbox khong co Postgres van khoi dong duoc).
+- `make_session_factory()` GIU NGUYEN `create_all` (test SQLite + tien dev),
+  khong xung dot vi baseline co guard.
+- `requirements.txt`: them `alembic>=1.13.0`.
+- Test moi `tests/test_migrations.py` (4 test chay THAT upgrade tren SQLite
+  file tam: DB moi / chay 2 lan idempotent / nhan nuoi DB create_all / doi
+  chieu cot migration khop cot ORM). **CHUA chay tren Postgres that** - lan
+  dau chay backend tren may dev, xem log khoi dong xac nhan
+  `alembic_version` duoc tao trong DB (khong can lam gi them, tu dong).
 
 ## 8. Van de dang mo / can quyet dinh
 
@@ -2244,3 +2313,17 @@ trong test, giong tinh than cac test khac trong repo).
   duoc that) - ky vong nhanh hon nhieu tren GPU CUDA that (RTX 4050, tu
   dong chon qua `device="auto"`) nhung **CHUA do toc do/VRAM/chat luong
   giong that tren GPU** - xem checklist day du + rui ro con lai o muc 6p.
+- 2026-07-15: **Trien khai 3 nang cap "Uu tien 3"** (nguoi dung chon tu danh
+  sach de xuat sau lan ra soat): (1) chong chong lan/troi audio khi long
+  tieng - tang toc clip TTS co gioi han 1.3x chi khi tran sang cau ke tiep
+  (`_fit_clips_to_timeline` trong `dub.py`) + `build_dub_track` tron cong
+  thay vi ghi de khi chong lan; (2) dich theo ngu canh bang Gemini
+  (`translator_gemini.py`, REST qua urllib stdlib, batch 40 cau, tu fallback
+  NLLB khi khong co GEMINI_API_KEY hoac API loi); (3) Alembic migration
+  (`alembic.ini` + `migrations/`, baseline 0001 co guard inspector nhan nuoi
+  DB cu, backend startup goi `upgrade head` thay ALTER tay cu). Xem chi tiet
+  day du muc 6q moi. **155/155 pytest pass (them 24 test moi), ruff sach,
+  `npm run build` pass** - chay THAT tren sandbox co Python. CHUA kiem chung
+  tren may that: chua nghe thu audio fit voi video that, chua goi Gemini API
+  that (can dien key), chua chay migration tren Postgres that (tu dong khi
+  khoi dong backend lan toi).

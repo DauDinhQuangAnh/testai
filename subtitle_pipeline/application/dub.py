@@ -1,6 +1,12 @@
 """Dieu phoi long tieng (dubbing): synthesize giong doc cho tung segment DA
-DICH, dat clip raw vao dung timeline, roi mux (ghep) vao video goc thay the
-audio cu. Mac dinh dung giong co san (edge-tts, khong clone) - neu video co
+DICH, dat clip vao dung timeline, roi mux (ghep) vao video goc thay the
+audio cu. Clip TTS dai hon khoang trong toi cau ke tiep se duoc TANG TOC CO
+GIOI HAN (ffmpeg atempo, toi da MAX_TEMPO_FACTOR) de giam chong lan/troi dan
+ve sau - xem _fit_target_duration. Khac voi co che stretch cu (da bo
+2026-07-03 vi ep khop CUNG [start, end] lam giong nghe do): chi tang toc khi
+THUC SU tran sang cau sau, va khong bao gio vuot nguong nghe tu nhien.
+
+Mac dinh dung giong co san (edge-tts, khong clone) - neu video co
 nhieu nguoi noi (`SubtitleSegment.speaker` tu diarization), TU DONG gan moi
 nguoi noi 1 giong khac nhau (xem `_build_speaker_voice_map`) thay vi ca video
 dung chung 1 giong. Neu `DubRenderOptions.custom_voice_ref_audio` duoc dat
@@ -30,7 +36,10 @@ from subtitle_pipeline.infrastructure.audio_mux import (
     burn_subtitles,
     mux_audio_into_video,
 )
-from subtitle_pipeline.infrastructure.audio_timing import probe_duration_seconds
+from subtitle_pipeline.infrastructure.audio_timing import (
+    probe_duration_seconds,
+    time_stretch_to_duration,
+)
 from subtitle_pipeline.infrastructure.tts_edge import (
     OUTPUT_SAMPLE_RATE,
     VOICE_OPTIONS,
@@ -41,6 +50,14 @@ from subtitle_pipeline.infrastructure.tts_vieneu import VieNeuCloneSynthesizer
 
 MAX_SYNTHESIZE_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 2.0
+
+# Chi tang toc clip khi tran qua khoang trong QUA nguong nay (tranh re-encode
+# vo ich cho phan tran vai chuc ms khong ai nghe thay).
+FIT_TOLERANCE = 1.05
+# Tran nguong tang toc nghe con tu nhien - vuot nguong nay tha chap nhan
+# chong lan con lai (duoc tron cong trong build_dub_track) con hon giong doc
+# nhanh bat thuong (ly do co che stretch cu bi bo, xem HANDOFF.md 2026-07-03).
+MAX_TEMPO_FACTOR = 1.3
 
 
 @dataclass
@@ -121,6 +138,60 @@ def _build_speaker_voice_map(
     return voice_by_speaker
 
 
+def _clip_duration_seconds(path: Path) -> float:
+    import soundfile as sf
+
+    info = sf.info(str(path))
+    return info.frames / info.samplerate
+
+
+def _fit_target_duration(clip_duration: float, window_seconds: float) -> float | None:
+    """Tinh thoi luong muc tieu de tang toc 1 clip TTS cho vua khoang trong
+    toi cau ke tiep. Tra None neu khong can dung gi (clip da vua, hoac chi
+    tran trong nguong FIT_TOLERANCE). Neu can tang toc qua MAX_TEMPO_FACTOR
+    moi vua, chi tang toi da MAX_TEMPO_FACTOR (chap nhan chong lan con lai) -
+    giu giong doc trong nguong nghe tu nhien. Ham thuan, test duoc rieng.
+    """
+    if window_seconds <= 0 or clip_duration <= window_seconds * FIT_TOLERANCE:
+        return None
+    return max(window_seconds, clip_duration / MAX_TEMPO_FACTOR)
+
+
+def _fit_clips_to_timeline(
+    clips: list[tuple[int, SubtitleSegment, Path]], total_duration: float
+) -> list[tuple[float, Path]]:
+    """Tang toc (co gioi han) cac clip TTS dai hon khoang trong den cau ke
+    tiep de giam chong lan giua cac cau va troi dan ve sau trong video dai.
+    Khoang trong tinh toi START cua clip ke tiep (khong ep khop [start, end]
+    cua chinh segment - cau sau cach xa thi cau truoc duoc noi thong tha).
+    Loi ffmpeg khi stretch chi lam mat toi uu cua 1 clip (dung ban raw),
+    khong lam fail ca job.
+    """
+    fitted: list[tuple[float, Path]] = []
+    overflow_count = 0
+    for index, (i, seg, clip_path) in enumerate(clips):
+        next_start = clips[index + 1][1].start if index + 1 < len(clips) else total_duration
+        window = next_start - seg.start
+        clip_duration = _clip_duration_seconds(clip_path)
+        target = _fit_target_duration(clip_duration, window)
+        if target is not None:
+            fit_path = clip_path.with_name(f"{i:05d}_fit.wav")
+            try:
+                time_stretch_to_duration(clip_path, fit_path, target)
+                clip_path = fit_path
+            except Exception as exc:
+                print(f"[dub] Khong tang toc duoc clip {i}: {exc}")
+            if target > window:
+                overflow_count += 1
+        fitted.append((seg.start, clip_path))
+    if overflow_count:
+        print(
+            f"[dub] Canh bao: {overflow_count} cau van dai hon khoang trong du da "
+            f"tang toc {MAX_TEMPO_FACTOR}x - phan tran se chong lan cau ke tiep."
+        )
+    return fitted
+
+
 def _synthesize_with_retry(tts: EdgeTTSSynthesizer, text: str, output_path: Path) -> bool:
     """edge-tts thinh thoang loi mang/API thoang qua (xem HANDOFF.md Phase
     5b) - thu lai toi da MAX_SYNTHESIZE_ATTEMPTS lan truoc khi bo qua han
@@ -158,7 +229,7 @@ def dub_and_export(
         else _build_speaker_voice_map(segments, target_language, options.voice)
     )
 
-    raw_clips: list[tuple[float, Path]] = []
+    raw_clips: list[tuple[int, SubtitleSegment, Path]] = []
     with ExitStack() as stack:
         synthesizers: dict[str, EdgeTTSSynthesizer] = {}
         cloned_tts = (
@@ -192,11 +263,12 @@ def dub_and_export(
             if not _synthesize_with_retry(tts, text, raw_clip):
                 continue
 
-            raw_clips.append((seg.start, raw_clip))
+            raw_clips.append((i, seg, raw_clip))
 
     total_duration = _total_duration(work_dir, source_video)
+    fitted_clips = _fit_clips_to_timeline(raw_clips, total_duration)
     dub_track_path = work_dir / f"dub_track_{target_language}.wav"
-    build_dub_track(raw_clips, total_duration, OUTPUT_SAMPLE_RATE, dub_track_path)
+    build_dub_track(fitted_clips, total_duration, OUTPUT_SAMPLE_RATE, dub_track_path)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     output_path = out_dir / f"{stem}.{target_language}.dubbed.{options.output_format}"
